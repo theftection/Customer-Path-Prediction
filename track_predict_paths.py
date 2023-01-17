@@ -16,40 +16,40 @@ import torch
 import torch.backends.cudnn as cudnn
 
 FILE = Path(__file__).resolve()
-ROOT = FILE.parents[0]  # yolov5 strongsort root directory
+ROOT = FILE.parents[0] / 'yolov8_tracking' # yolov8 strongsort root directory
 WEIGHTS = ROOT / 'weights'
 
 if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))  # add ROOT to PATH
-if str(ROOT / 'yolov5') not in sys.path:
-    sys.path.append(str(ROOT / 'yolov5'))  # add yolov5 ROOT to PATH
+if str(ROOT / 'yolov8') not in sys.path:
+    sys.path.append(str(ROOT / 'yolov8'))  # add yolov5 ROOT to PATH
 if str(ROOT / 'trackers' / 'strongsort') not in sys.path:
     sys.path.append(str(ROOT / 'trackers' / 'strongsort'))  # add strong_sort ROOT to PATH
 
 ROOT = Path(os.path.relpath(ROOT, Path.cwd()))  # relative
 
 import logging
-from yolov8.ultralytics.nn.autobackend import AutoBackend
-from yolov8.ultralytics.yolo.data.dataloaders.stream_loaders import LoadImages, LoadStreams
-from yolov8.ultralytics.yolo.data.utils import IMG_FORMATS, VID_FORMATS
-from yolov8.ultralytics.yolo.utils import DEFAULT_CONFIG, LOGGER, SETTINGS, callbacks, colorstr, ops
-from yolov8.ultralytics.yolo.utils.checks import check_file, check_imgsz, check_imshow, print_args, check_requirements
-from yolov8.ultralytics.yolo.utils.files import increment_path
-from yolov8.ultralytics.yolo.utils.torch_utils import select_device
-from yolov8.ultralytics.yolo.utils.ops import Profile, non_max_suppression, scale_boxes, process_mask, process_mask_native
-from yolov8.ultralytics.yolo.utils.plotting import Annotator, colors
+from yolov8_tracking.yolov8.ultralytics.nn.autobackend import AutoBackend
+from yolov8_tracking.yolov8.ultralytics.yolo.data.dataloaders.stream_loaders import LoadImages, LoadStreams
+from yolov8_tracking.yolov8.ultralytics.yolo.data.utils import IMG_FORMATS, VID_FORMATS
+from yolov8_tracking.yolov8.ultralytics.yolo.utils import DEFAULT_CONFIG, LOGGER, SETTINGS, callbacks, colorstr, ops
+from yolov8_tracking.yolov8.ultralytics.yolo.utils.checks import check_file, check_imgsz, check_imshow, print_args, check_requirements
+from yolov8_tracking.yolov8.ultralytics.yolo.utils.files import increment_path
+from yolov8_tracking.yolov8.ultralytics.yolo.utils.torch_utils import select_device
+from yolov8_tracking.yolov8.ultralytics.yolo.utils.ops import Profile, non_max_suppression, scale_boxes, process_mask, process_mask_native
+from yolov8_tracking.yolov8.ultralytics.yolo.utils.plotting import Annotator, colors
 
-from trackers.multi_tracker_zoo import create_tracker
+from yolov8_tracking.trackers.multi_tracker_zoo import create_tracker
 
 
 @torch.no_grad()
 def run(
         source='0',
-        yolo_weights=WEIGHTS / 'yolov5m.pt',  # model.pt path(s),
+        yolo_weights=WEIGHTS / 'yolov8m.pt',  # model.pt path(s),
         reid_weights=WEIGHTS / 'osnet_x0_25_msmt17.pt',  # model.pt path,
         tracking_method='strongsort',
         tracking_config=None,
-        imgsz=(640, 640),  # inference size (height, width)
+        imgsz=(960, 960),  # inference size (height, width)
         conf_thres=0.25,  # confidence threshold
         iou_thres=0.45,  # NMS IOU threshold
         max_det=1000,  # maximum detections per image
@@ -79,12 +79,7 @@ def run(
         retina_masks=False,
 ):
 
-    # ToDo: Downsample the video to 960p
-
-    net = TransisitoionNet(history.data, Grid)
-
     source = str(source)
-    save_img = not nosave and not source.endswith('.txt')  # save inference images
     is_file = Path(source).suffix[1:] in (VID_FORMATS)
     is_url = source.lower().startswith(('rtsp://', 'rtmp://', 'http://', 'https://'))
     webcam = source.isnumeric() or source.endswith('.txt') or (is_url and not is_file)
@@ -288,10 +283,6 @@ def run(
 
             # Save results (image with detections)
             if save_vid:
-
-                path  = Transition_Net.Predict_next_step(x,y) #list of points on the image
-                #draw arroaw from (x,y) to path [0] and then path[0] to path[1]
-
 
                 if vid_path[i] != save_path:  # new video
                     vid_path[i] = save_path
