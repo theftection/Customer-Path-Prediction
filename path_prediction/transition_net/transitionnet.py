@@ -72,6 +72,13 @@ class TransitionNet:
         transition_vector = np.dot(point_vector, self.probability_net)
         transition_index = np.random.choice(range(len(transition_vector)), p=transition_vector)
         return GridPoint.from_grid_cell(self.index_to_grid[transition_index], self.grid, self.resolution)
+    
+    def sample_path(self, point, length):
+        path = []
+        for i in range(length):
+            path.append(point)
+            point = self.sample_transition(point)
+        return path
 
 
 if __name__ == '__main__':
