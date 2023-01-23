@@ -1,3 +1,8 @@
+'''
+This class is used to convert a point in the frame to a grid cell and vice versa.
+
+Note: coordinates are from top, left corner and the grid starts at 0,0
+'''
 class GridPoint:
 
     def __init__(self, x, y, grid, resolution):

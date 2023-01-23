@@ -7,6 +7,8 @@ from gridpoint import GridPoint
     TransitionNet class
     this class reads in a txt file with ids and coordinates of the points
     and creates a transition net with probabilities and absolutes
+
+    Note: coordinates are from top, left corner and the grid starts at 0,0
 '''
 class TransitionNet:
 
