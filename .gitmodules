@@ -1,3 +1,0 @@
-[submodule "yolov8_tracking"]
-	path = yolov8_tracking
-	url = https://github.com/mikel-brostrom/yolov8_tracking.git

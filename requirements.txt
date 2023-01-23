@@ -1,3 +1,6 @@
+# You also need git installed, so if you do not have sudo access then run:
+# conda install -c anaconda git
+
 # pip install -r requirements.txt
 ultralytics
 

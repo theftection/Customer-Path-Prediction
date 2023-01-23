@@ -15,6 +15,8 @@ from pathlib import Path
 import torch
 import torch.backends.cudnn as cudnn
 
+os.environ["GIT_PYTHON_REFRESH"] = "quiet"
+
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[0] / 'yolov8_tracking' # yolov8 strongsort root directory
 WEIGHTS = ROOT / 'weights'
@@ -45,7 +47,7 @@ from yolov8_tracking.trackers.multi_tracker_zoo import create_tracker
 @torch.no_grad()
 def run(
         source='0',
-        yolo_weights=WEIGHTS / 'yolov8m.pt',  # model.pt path(s),
+        yolo_weights=WEIGHTS / 'yolov8n.pt',  # model.pt path(s),
         reid_weights=WEIGHTS / 'osnet_x0_25_msmt17.pt',  # model.pt path,
         tracking_method='strongsort',
         tracking_config=None,
@@ -338,7 +340,7 @@ def parse_opt():
     parser.add_argument('--augment', action='store_true', help='augmented inference')
     parser.add_argument('--visualize', action='store_true', help='visualize features')
     parser.add_argument('--update', action='store_true', help='update all models')
-    parser.add_argument('--project', default=ROOT / 'runs' / 'track', help='save results to project/name')
+    parser.add_argument('--project', default= Path.cwd() / 'runss', help='save results to project/name')
     parser.add_argument('--name', default='exp', help='save results to project/name')
     parser.add_argument('--exist-ok', action='store_true', help='existing project/name ok, do not increment')
     parser.add_argument('--line-thickness', default=2, type=int, help='bounding box thickness (pixels)')
