@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import pandas as pd
 
@@ -12,14 +13,10 @@ from gridpoint import GridPoint
 '''
 class TransitionNet:
 
-    def __init__(self, data, grid, resolution, frames_per_step, count_standing=False, count_huge_movement=False):
+    def __init__(self, data_dir, grid, resolution, frames_per_step, count_standing=False, count_huge_movement=False):
         
         self.grid = grid
         self.resolution = resolution
-
-        #read in data 
-        data = pd.read_csv('data.txt', sep=' ')
-        data.drop(['ign', 'ign2', 'ign3', 'class'], axis=1, inplace=True)
 
         #get from grid_cell to index
         self.grid_to_index = {}
@@ -33,36 +30,42 @@ class TransitionNet:
         #create transition net with probailities and absolutes
         self.absolute_net = np.ones((grid[0] * grid[1], grid[0] * grid[1]))
 
-        grouped = data.groupby('id')
-        for index, data_per_id in grouped:
-            data_per_id['Frame'] = data_per_id['Frame'] // frames_per_step
-            data_per_id = data_per_id.groupby('Frame').mean().round(0)
-            data_per_id['center_coordinates'] = list(zip(data_per_id.x + data_per_id.w / 2, data_per_id.y + data_per_id.h / 2))
-            data_per_id['grid_point'] = data_per_id.center_coordinates.apply(lambda x: GridPoint(x[0], x[1], grid, resolution).get_grid_cell())
-            data_per_id = data_per_id.reset_index(level=0)
+        #read in data dir and iterate over files
+        for file in os.listdir(data_dir):
+            if not file.endswith(".txt"):
+                continue
+            data = pd.read_csv(data_dir+file, sep=' ')
+            data.drop(['ign', 'ign2', 'ign3', 'class'], axis=1, inplace=True)
 
-            # iterate through consecutive columns and check if the "Frame" is consecutive. If so, add 1 to the absolute net
-            for index in data_per_id.index[:-1]:
-                if data_per_id.loc[index, 'Frame'] + 1 == data_per_id.loc[index + 1, 'Frame']:
-                    from_grid_point = data_per_id.loc[index, 'grid_point']
-                    to_grid_point = data_per_id.loc[index + 1, 'grid_point']
+            grouped = data.groupby('id')
+            for index, data_per_id in grouped:
+                data_per_id['Frame'] = data_per_id['Frame'] // frames_per_step
+                data_per_id = data_per_id.groupby('Frame').mean().round(0)
+                data_per_id['center_coordinates'] = list(zip(data_per_id.x + data_per_id.w / 2, data_per_id.y + data_per_id.h / 2))
+                data_per_id['grid_point'] = data_per_id.center_coordinates.apply(lambda x: GridPoint(x[0], x[1], grid, resolution).get_grid_cell())
+                data_per_id = data_per_id.reset_index(level=0)
 
-                    # if the movement is too big, ignore it
-                    if not count_huge_movement and (from_grid_point[0] - to_grid_point[0] > 1 or to_grid_point[0] - from_grid_point[0] > 1):
-                        continue
-
-                    self.absolute_net[self.grid_to_index[from_grid_point], self.grid_to_index[to_grid_point]] += 1
+                # iterate through consecutive columns and check if the "Frame" is consecutive. If so, add 1 to the absolute net
+                for index in data_per_id.index[:-1]:
+                    if data_per_id.loc[index, 'Frame'] + 1 == data_per_id.loc[index + 1, 'Frame']:
+                        from_grid_point = data_per_id.loc[index, 'grid_point']
+                        to_grid_point = data_per_id.loc[index + 1, 'grid_point']
+                        self.absolute_net[self.grid_to_index[from_grid_point], self.grid_to_index[to_grid_point]] += 1
 
 
         if not count_standing:
             # remove standing transistions
             self.absolute_net = self.absolute_net - np.diag(np.diag(self.absolute_net))
+
+        if not count_huge_movement:
+            # remove transitions larger than 1
+            for i, j in self.grid_to_index.keys():
+                for k, l in self.grid_to_index.keys():
+                    if abs(i-k) > 1 or abs(j-l) > 1:
+                        self.absolute_net[self.grid_to_index[(i,j)], self.grid_to_index[(k,l)]] = 0
             
         #normalize absolute transition net to probabilities
         self.probability_net = self.absolute_net / self.absolute_net.sum(axis=1, keepdims=True)
-
-        print(self.absolute_net)
-        print(self.probability_net)
 
     def transform_coordiante_to_point_datastructure(self, x, y):
         return GridPoint(x, y, self.grid, self.resolution)
@@ -84,9 +87,13 @@ class TransitionNet:
 
 
 if __name__ == '__main__':
-    tn = TransitionNet('data.txt', (2,2), (960,720), 100)
+    tn = TransitionNet('inference_data/transition_net_data/', (20,15), (960,720), 10)
     point = tn.transform_coordiante_to_point_datastructure(100,100)
-    print(point.get_grid_cell())
-    sampled_point = tn.sample_transition(point)
-    print(sampled_point.get_grid_cell())
-    print(sampled_point.get_grid_cell_middle_coordinates())
+    for i in range(5):
+        path = tn.sample_path(point, 6)
+        for p in path:
+            print(p.get_grid_cell())
+        print('---')
+    # sampled_point = tn.sample_transition(point)
+    # print(sampled_point.get_grid_cell())
+    # print(sampled_point.get_grid_cell_middle_coordinates())
