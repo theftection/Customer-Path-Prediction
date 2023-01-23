@@ -18,15 +18,17 @@ import torch.backends.cudnn as cudnn
 os.environ["GIT_PYTHON_REFRESH"] = "quiet"
 
 FILE = Path(__file__).resolve()
-ROOT = FILE.parents[0] / 'yolov8_tracking' # yolov8 strongsort root directory
+PARENT = FILE.parents[0]
+ROOT = PARENT / 'yolov8_tracking' # yolov8 strongsort root directory
 WEIGHTS = ROOT / 'weights'
 
+if str(PARENT) not in sys.path:
+    sys.path.append(str(PARENT))  # add ROOT to PATH
 if str(ROOT) not in sys.path:
-    sys.path.append(str(ROOT))  # add ROOT to PATH
-if str(ROOT / 'yolov8') not in sys.path:
-    sys.path.append(str(ROOT / 'yolov8'))  # add yolov5 ROOT to PATH
+    sys.path.append(str(ROOT))  # add ROOT to PATH    
 if str(ROOT / 'trackers' / 'strongsort') not in sys.path:
     sys.path.append(str(ROOT / 'trackers' / 'strongsort'))  # add strong_sort ROOT to PATH
+
 
 ROOT = Path(os.path.relpath(ROOT, Path.cwd()))  # relative
 
@@ -43,6 +45,11 @@ from yolov8_tracking.yolov8.ultralytics.yolo.utils.plotting import Annotator, co
 
 from yolov8_tracking.trackers.multi_tracker_zoo import create_tracker
 
+#from path_prediction.utils import plots
+
+# 1. Remove -seg support
+# 2. Modify default arguments and paths
+
 
 @torch.no_grad()
 def run(
@@ -51,24 +58,23 @@ def run(
         reid_weights=WEIGHTS / 'osnet_x0_25_msmt17.pt',  # model.pt path,
         tracking_method='strongsort',
         tracking_config=None,
-        imgsz=(960, 960),  # inference size (height, width)
+        imgsz=[640, 640],  # inference size (height, width)
         conf_thres=0.25,  # confidence threshold
         iou_thres=0.45,  # NMS IOU threshold
         max_det=1000,  # maximum detections per image
-        device='',  # cuda device, i.e. 0 or 0,1,2,3 or cpu
+        device=0,  # cuda device, i.e. 0 or 0,1,2,3 or cpu
         show_vid=False,  # show results
         save_txt=False,  # save results to *.txt
-        save_conf=False,  # save confidences in --save-txt labels
+        #save_conf=False,  # save confidences in --save-txt labels
         save_crop=False,  # save cropped prediction boxes
         save_trajectories=False,  # save trajectories for each track
         save_vid=False,  # save confidences in --save-txt labels
-        nosave=False,  # do not save images/videos
         classes=None,  # filter by class: --class 0, or --class 0 2 3
         agnostic_nms=False,  # class-agnostic NMS
         augment=False,  # augmented inference
         visualize=False,  # visualize features
-        update=False,  # update all models
-        project=ROOT / 'runs' / 'track',  # save results to project/name
+        #update=False,  # update all models
+        project=Path.cwd() / 'runs',  # save results to project/name
         name='exp',  # save results to project/name
         exist_ok=False,  # existing project/name ok, do not increment
         line_thickness=2,  # bounding box thickness (pixels)
@@ -78,8 +84,11 @@ def run(
         half=False,  # use FP16 half-precision inference
         dnn=False,  # use OpenCV DNN for ONNX inference
         vid_stride=1,  # video frame-rate stride
-        retina_masks=False,
+        #retina_masks=False,
 ):
+
+    if not tracking_config:
+        tracking_config = ROOT / 'trackers' / tracking_method / 'configs' / (tracking_method + '.yaml')
 
     source = str(source)
     is_file = Path(source).suffix[1:] in (VID_FORMATS)
@@ -101,7 +110,6 @@ def run(
 
     # Load model
     device = select_device(device)
-    is_seg = '-seg' in str(yolo_weights)
     model = AutoBackend(yolo_weights, device=device, dnn=dnn, fp16=half)
     stride, names, pt = model.stride, model.names, model.pt
     imgsz = check_imgsz(imgsz, stride=stride)  # check image size
@@ -142,7 +150,6 @@ def run(
     outputs = [None] * nr_sources
 
     # Run tracking
-    #model.warmup(imgsz=(1 if pt else nr_sources, 3, *imgsz))  # warmup
     seen, windows, dt = 0, [], (Profile(), Profile(), Profile(), Profile())
     curr_frames, prev_frames = [None] * nr_sources, [None] * nr_sources
     for frame_idx, batch in enumerate(dataset):
@@ -155,21 +162,13 @@ def run(
             if len(im.shape) == 3:
                 im = im[None]  # expand for batch dim
 
-        # Check if any pixels are different
-
-
         # Inference
         with dt[1]:
             preds = model(im, augment=augment, visualize=visualize)
 
         # Apply NMS
         with dt[2]:
-            if is_seg:
-                masks = []
-                p = non_max_suppression(preds[0], conf_thres, iou_thres, classes, agnostic_nms, max_det=max_det, nm=32)
-                proto = preds[1][-1]
-            else:
-                p = non_max_suppression(preds, conf_thres, iou_thres, classes, agnostic_nms, max_det=max_det)
+            p = non_max_suppression(preds, conf_thres, iou_thres, classes, agnostic_nms, max_det=max_det)
             
         # Process detections
         for i, det in enumerate(p):  # detections per image
@@ -204,17 +203,7 @@ def run(
                     tracker_list[i].tracker.camera_update(prev_frames[i], curr_frames[i])
 
             if det is not None and len(det):
-                if is_seg:
-                    shape = im0.shape
-                    # scale bbox first the crop masks
-                    if retina_masks:
-                        det[:, :4] = scale_boxes(im.shape[2:], det[:, :4], shape).round()  # rescale boxes to im0 size
-                        masks.append(process_mask_native(proto[i], det[:, 6:], det[:, :4], im0.shape[:2]))  # HWC
-                    else:
-                        masks.append(process_mask(proto[i], det[:, 6:], det[:, :4], im.shape[2:], upsample=True))  # HWC
-                        det[:, :4] = scale_boxes(im.shape[2:], det[:, :4], shape).round()  # rescale boxes to im0 size
-                else:
-                    det[:, :4] = scale_boxes(im.shape[2:], det[:, :4], im0.shape).round()  # rescale boxes to im0 size
+                det[:, :4] = scale_boxes(im.shape[2:], det[:, :4], im0.shape).round()  # rescale boxes to im0 size
 
                 # Print results
                 for c in det[:, 5].unique():
@@ -253,24 +242,15 @@ def run(
                                 (f'{id} {conf:.2f}' if hide_class else f'{id} {names[c]} {conf:.2f}'))
                             color = colors(c, True)
                             annotator.box_label(bbox, label, color=color)
-                            if is_seg:
-                                    # Mask plotting
-                                annotator.masks(
-                                    masks[i],
-                                    colors=[colors(x, True) for x in det[:, 5]],
-                                    im_gpu=torch.as_tensor(im0, dtype=torch.float16).to(device).permute(2, 0, 1).flip(0).contiguous() /
-                                    255 if retina_masks else im[i]
-                                )
                             if save_trajectories and tracking_method == 'strongsort':
                                 q = output[7]
                                 tracker_list[i].trajectory(im0, q, color=color)
+                            if 'save_path_prediction':
+                                path = [bbox] #predict from bbox
+                                draw_predicted_path(im0, path, color)
                             if save_crop:
                                 txt_file_name = txt_file_name if (isinstance(path, list) and len(path) > 1) else ''
                                 save_one_box(np.array(bbox, dtype=np.int16), imc, file=save_dir / 'crops' / txt_file_name / names[c] / f'{id}' / f'{p.stem}.jpg', BGR=True)
-                            
-            else:
-                pass
-                #tracker_list[i].tracker.pred_n_update_all_tracks()
                 
             # Stream results
             im0 = annotator.result()
@@ -311,58 +291,21 @@ def run(
     if save_txt or save_vid:
         s = f"\n{len(list((save_dir / 'tracks').glob('*.txt')))} tracks saved to {save_dir / 'tracks'}" if save_txt else ''
         LOGGER.info(f"Results saved to {colorstr('bold', save_dir)}{s}")
-    if update:
-        strip_optimizer(yolo_weights)  # update model (to fix SourceChangeWarning)
-
-
-def parse_opt():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--yolo-weights', nargs='+', type=Path, default=WEIGHTS / 'yolov8s-seg.pt', help='model.pt path(s)')
-    parser.add_argument('--reid-weights', type=Path, default=WEIGHTS / 'osnet_x0_25_msmt17.pt')
-    parser.add_argument('--tracking-method', type=str, default='bytetrack', help='strongsort, ocsort, bytetrack')
-    parser.add_argument('--tracking-config', type=Path, default=None)
-    parser.add_argument('--source', type=str, default='0', help='file/dir/URL/glob, 0 for webcam')  
-    parser.add_argument('--imgsz', '--img', '--img-size', nargs='+', type=int, default=[640], help='inference size h,w')
-    parser.add_argument('--conf-thres', type=float, default=0.5, help='confidence threshold')
-    parser.add_argument('--iou-thres', type=float, default=0.5, help='NMS IoU threshold')
-    parser.add_argument('--max-det', type=int, default=1000, help='maximum detections per image')
-    parser.add_argument('--device', default='', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
-    parser.add_argument('--show-vid', action='store_true', help='display tracking video results')
-    parser.add_argument('--save-txt', action='store_true', help='save results to *.txt')
-    parser.add_argument('--save-conf', action='store_true', help='save confidences in --save-txt labels')
-    parser.add_argument('--save-crop', action='store_true', help='save cropped prediction boxes')
-    parser.add_argument('--save-trajectories', action='store_true', help='save trajectories for each track')
-    parser.add_argument('--save-vid', action='store_true', help='save video tracking results')
-    parser.add_argument('--nosave', action='store_true', help='do not save images/videos')
-    # class 0 is person, 1 is bycicle, 2 is car... 79 is oven
-    parser.add_argument('--classes', nargs='+', type=int, help='filter by class: --classes 0, or --classes 0 2 3')
-    parser.add_argument('--agnostic-nms', action='store_true', help='class-agnostic NMS')
-    parser.add_argument('--augment', action='store_true', help='augmented inference')
-    parser.add_argument('--visualize', action='store_true', help='visualize features')
-    parser.add_argument('--update', action='store_true', help='update all models')
-    parser.add_argument('--project', default= Path.cwd() / 'runss', help='save results to project/name')
-    parser.add_argument('--name', default='exp', help='save results to project/name')
-    parser.add_argument('--exist-ok', action='store_true', help='existing project/name ok, do not increment')
-    parser.add_argument('--line-thickness', default=2, type=int, help='bounding box thickness (pixels)')
-    parser.add_argument('--hide-labels', default=False, action='store_true', help='hide labels')
-    parser.add_argument('--hide-conf', default=False, action='store_true', help='hide confidences')
-    parser.add_argument('--hide-class', default=False, action='store_true', help='hide IDs')
-    parser.add_argument('--half', action='store_true', help='use FP16 half-precision inference')
-    parser.add_argument('--dnn', action='store_true', help='use OpenCV DNN for ONNX inference')
-    parser.add_argument('--vid-stride', type=int, default=1, help='video frame-rate stride')
-    parser.add_argument('--retina-masks', action='store_true', help='whether to plot masks in native resolution')
-    opt = parser.parse_args()
-    opt.imgsz *= 2 if len(opt.imgsz) == 1 else 1  # expand
-    opt.tracking_config = ROOT / 'trackers' / opt.tracking_method / 'configs' / (opt.tracking_method + '.yaml')
-    print_args(vars(opt))
-    return opt
-
-
-def main(opt):
-    check_requirements(requirements=ROOT / 'requirements.txt', exclude=('tensorboard', 'thop'))
-    run(**vars(opt))
 
 
 if __name__ == "__main__":
-    opt = parse_opt()
-    main(opt)
+    check_requirements(requirements=ROOT / 'requirements.txt', exclude=('tensorboard', 'thop'))
+    run(
+        source='inference_data/track.mp4',
+        yolo_weights=WEIGHTS / 'yolov8n.pt',  # model.pt path(s),
+        reid_weights=WEIGHTS / 'osnet_x0_25_msmt17.pt',  # model.pt path,
+        tracking_method='strongsort',
+        device=0,  # cuda device, i.e. 0 or 0,1,2,3 or cpu
+        save_txt=True,  # save results to *.txt
+        save_trajectories=False,  # save trajectories for each track
+        save_vid=True,  # save confidences in --save-txt labels
+        classes=None,  # filter by class: --class 0, or --class 0 2 3
+        project=Path.cwd() / 'inference_data' / 'runs',  # save results to project/name
+        name='exp',  # save results to project/name
+        line_thickness=2,  # bounding box thickness (pixels)
+    )
