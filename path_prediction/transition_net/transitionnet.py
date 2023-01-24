@@ -46,37 +46,24 @@ class TransitionNet:
                 data_per_id['grid_point'] = data_per_id.center_coordinates.apply(lambda x: GridPoint(x[0], x[1], grid, resolution).get_grid_cell())
                 data_per_id = data_per_id.reset_index(level=0)
 
-                print(data_per_id)
-
                 # iterate through consecutive columns and check if the "Frame" is consecutive. If so, add 1 to the absolute net
                 for index in data_per_id.index[:-1]:
-                    if data_per_id.loc[index, 'Frame'] + 1 == data_per_id.loc[index + 1, 'Frame']:
+                    if data_per_id.loc[index, 'Frame'] + 1 == data_per_id.loc[index + 1, 'Frame']: #decide if this is needed if huge movements get filtered one way or the other
                         from_grid_point = data_per_id.loc[index, 'grid_point']
                         to_grid_point = data_per_id.loc[index + 1, 'grid_point']
                         self.absolute_net[self.grid_to_index[from_grid_point], self.grid_to_index[to_grid_point]] += 1
-                        count += 1
-        
-        print(count)
-        print(np.ones((grid[0] * grid[1], grid[0] * grid[1])).sum())
-        print('-----')
 
 
         if not count_standing:
             # remove standing transistions
             self.absolute_net = self.absolute_net - np.diag(np.diag(self.absolute_net))
-            print('-', grid[0]*grid[1])
 
-        remove_count = 0
         if not count_huge_movement:
             # remove transitions larger than 1
             for i, j in self.grid_to_index.keys():
                 for k, l in self.grid_to_index.keys():
                     if abs(i-k) > 1 or abs(j-l) > 1:
                         self.absolute_net[self.grid_to_index[(i,j)], self.grid_to_index[(k,l)]] = 0
-                        remove_count += 1
-            
-            print('-', remove_count)
-        print(self.absolute_net.sum())
             
         #normalize absolute transition net to probabilities
         self.probability_net = self.absolute_net / self.absolute_net.sum(axis=1, keepdims=True)
@@ -115,16 +102,17 @@ class TransitionNet:
 if __name__ == '__main__':
     tn = TransitionNet('inference_data/transitions/', (20,15), (960,720), 2)
 
-    for i, j in tn.grid_to_index.keys():
-        for k, l in tn.grid_to_index.keys():
-            count = tn.absolute_net[tn.grid_to_index[(i,j)], tn.grid_to_index[(k,l)]]
-            if count:
-                ...
-                # print(f'({i},{j})->({k},{l}): {count}')
+    # # print transitions
+    # for i, j in tn.grid_to_index.keys():
+    #     for k, l in tn.grid_to_index.keys():
+    #         count = tn.absolute_net[tn.grid_to_index[(i,j)], tn.grid_to_index[(k,l)]]
+    #         if count:
+    #             print(f'({i},{j})->({k},{l}): {count}')
     
-    np.savetxt('tm.txt', tn.absolute_net, fmt='%d')
+    # # save matrix
+    # np.savetxt('tm.txt', tn.absolute_net, fmt='%d')
 
-
+    # # try out path prediction
     # point = tn.transform_coordiante_to_point_datastructure(100,100)
     # for i in range(5):
     #     path = tn.sample_path(point, 6)
