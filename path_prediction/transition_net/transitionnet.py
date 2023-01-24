@@ -2,7 +2,7 @@ import os
 import numpy as np
 import pandas as pd
 
-from gridpoint import GridPoint
+from path_prediction.transition_net.gridpoint import GridPoint
 
 '''
     TransitionNet class
@@ -66,7 +66,7 @@ class TransitionNet:
             
         #normalize absolute transition net to probabilities
         self.probability_net = self.absolute_net / self.absolute_net.sum(axis=1, keepdims=True)
-
+    
     def transform_coordiante_to_point_datastructure(self, x, y):
         return GridPoint(x, y, self.grid, self.resolution)
 
@@ -77,12 +77,24 @@ class TransitionNet:
         transition_vector = np.dot(point_vector, self.probability_net)
         transition_index = np.random.choice(range(len(transition_vector)), p=transition_vector)
         return GridPoint.from_grid_cell(self.index_to_grid[transition_index], self.grid, self.resolution)
+
+    def predict_transition(self, point):
+        point_index = self.grid_to_index[point.get_grid_cell()]
+        transition_index = np.argmax(self.probability_net[point_index])
+        return GridPoint.from_grid_cell(self.index_to_grid[transition_index], self.grid, self.resolution)
     
     def sample_path(self, point, length):
         path = []
         for i in range(length):
             path.append(point)
             point = self.sample_transition(point)
+        return path
+
+    def predict_path(self, point, length):
+        path = []
+        for i in range(length):
+            path.append(point)
+            point = self.predict_transition(point)
         return path
 
 
