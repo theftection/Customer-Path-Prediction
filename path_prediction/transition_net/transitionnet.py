@@ -2,8 +2,8 @@ import os
 import numpy as np
 import pandas as pd
 
-#from path_prediction.transition_net.gridpoint import GridPoint
-from gridpoint import GridPoint
+from path_prediction.transition_net.gridpoint import GridPoint
+#from gridpoint import GridPoint
 '''
     TransitionNet class
     this class reads in a txt file with ids and coordinates of the points
