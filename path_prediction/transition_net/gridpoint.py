@@ -6,8 +6,8 @@ Note: coordinates are from top, left corner and the grid starts at 0,0
 class GridPoint:
 
     def __init__(self, x, y, grid, resolution):
-        self.x = x
-        self.y = y
+        self.x = int(x) # meaning col
+        self.y = int(y) # meaning row
         self.grid = grid # e.g. (10, 10)
         self.resolution = resolution # e.g (960,720)
         self.grid_width = resolution[0] / grid[0]

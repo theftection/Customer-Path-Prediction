@@ -1,6 +1,7 @@
 import argparse
 import cv2
 import os
+
 # limit the number of cpus used by high performance libraries
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
@@ -41,6 +42,9 @@ from yolov8_tracking.yolov8.ultralytics.yolo.utils.plotting import Annotator, co
 
 from yolov8_tracking.trackers.multi_tracker_zoo import create_tracker
 
+from path_prediction.transition_net.transitionnet import TransitionNet
+from path_prediction.utils.plots import draw_predicted_path
+
 
 @torch.no_grad()
 def run(
@@ -78,6 +82,8 @@ def run(
         vid_stride=1,  # video frame-rate stride
         retina_masks=False,
 ):
+
+    tn = TransitionNet('inference_data/transitions/', (20,15), (960,720), 1)
 
     source = str(source)
     save_img = not nosave and not source.endswith('.txt')  # save inference images
@@ -257,6 +263,14 @@ def run(
                                     im_gpu=torch.as_tensor(im0, dtype=torch.float16).to(device).permute(2, 0, 1).flip(0).contiguous() /
                                     255 if retina_masks else im[i]
                                 )
+                            if 'save_paths':
+                                # optain center point of bbox
+                                bbox_x = int(output[0] + (output[2] - output[0]) / 2)
+                                bbox_y = int(output[1] + (output[3] - output[1]) / 2)
+                                bbox_center = tn.transform_coordiante_to_point_datastructure(bbox_x, bbox_y)
+                                path = tn.predict_path(bbox_center, 4)
+                                draw_predicted_path(im0, path, (0,255,0), line_thickness)
+
                             if save_trajectories and tracking_method == 'strongsort':
                                 q = output[7]
                                 tracker_list[i].trajectory(im0, q, color=color)
@@ -311,10 +325,11 @@ def run(
 
 
 def parse_opt():
+    # python track.py --source inference_data/input/track_short.py --device 0 --classes 0 --save-vid --save-txt --project inference_data/runs
     parser = argparse.ArgumentParser()
-    parser.add_argument('--yolo-weights', nargs='+', type=Path, default=WEIGHTS / 'yolov8s-seg.pt', help='model.pt path(s)')
+    parser.add_argument('--yolo-weights', nargs='+', type=Path, default=WEIGHTS / 'yolov8n.pt', help='model.pt path(s)')
     parser.add_argument('--reid-weights', type=Path, default=WEIGHTS / 'osnet_x0_25_msmt17.pt')
-    parser.add_argument('--tracking-method', type=str, default='bytetrack', help='strongsort, ocsort, bytetrack')
+    parser.add_argument('--tracking-method', type=str, default='strongsort', help='strongsort, ocsort, bytetrack')
     parser.add_argument('--tracking-config', type=Path, default=None)
     parser.add_argument('--source', type=str, default='0', help='file/dir/URL/glob, 0 for webcam')  
     parser.add_argument('--imgsz', '--img', '--img-size', nargs='+', type=int, default=[640], help='inference size h,w')
