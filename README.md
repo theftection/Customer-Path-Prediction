@@ -4,7 +4,7 @@
 - [x] track.mp4 kürzen
 - [x] track.py neu kopieren und laufzeit testen
 - [x] imports fixen
-- [ ] project ordner ändern und argumente ändern
-- [ ] transition net integrieren
+- [x] project ordner ändern und argumente ändern
 - [x] langer txt file einlesen
-- [ ] transition net testen und ausgeben
+- [x] transition net integrieren
+- [x] transition net testen und ausgeben
