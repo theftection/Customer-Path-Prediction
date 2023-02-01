@@ -5,7 +5,6 @@ class GridPoint:
     rel_x: float
     rel_y: float
     cam_id: int
-
     grid_x: int
     grid_y: int
     grid_dim: (int, int)
@@ -13,7 +12,7 @@ class GridPoint:
     is_blank: bool
 
     def __init__(self, rel_x: float = 0, rel_y: float = 0,
-                 grid_dim: (int, int) = (10, 10), cam_id: int = 0,
+                 grid_dim: (int, int) = (-1, -1), cam_id: int = -1,
                  is_blank: bool = False):
 
         self.is_blank = is_blank
@@ -33,6 +32,17 @@ class GridPoint:
             self.cam_id = cam_id
             self.grid_x = int(rel_x * grid_dim[0])
             self.grid_y = int(rel_y * grid_dim[1])
+
+    def reassign_grid(self, grid_dim: (int, int)) -> object:
+
+        if self.is_blank:
+            return
+
+        self.grid_dim = grid_dim
+        self.grid_x = int(self.rel_x * grid_dim[0])
+        self.grid_y = int(self.rel_y * grid_dim[1])
+
+        return self
 
     def __eq__(self, other):
         # if either position is blank they are equal
