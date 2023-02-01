@@ -29,7 +29,7 @@ class GridPoint:
         else:
             self.rel_x = rel_x
             self.rel_y = rel_y
-            self.cam_id = cam_id
+            self.cam_id = int(cam_id)
             self.grid_x = int(rel_x * grid_dim[0])
             self.grid_y = int(rel_y * grid_dim[1])
 
@@ -50,6 +50,13 @@ class GridPoint:
             return True
 
         return (self.grid_x, self.grid_y, self.cam_id) == (other.grid_x, other.grid_y, other.cam_id)
+
+    def __str__(self):
+
+        if self.is_blank:
+            return "BLANK"
+
+        return f"({self.grid_x}, {self.grid_y}, {self.cam_id}) on {self.grid_dim}"
 
     def convert_to_pixel_position(self, image_size: (int, int), return_center: bool = True) -> (int, int):
         """
