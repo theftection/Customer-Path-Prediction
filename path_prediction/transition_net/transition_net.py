@@ -1,8 +1,10 @@
 import math
+import time
 from typing import Dict
 import itertools
 
 import numpy as np
+from numpy import ndarray
 
 from path_prediction.transition_net.grid_point import GridPoint
 from transition_data import TransitionData
@@ -18,6 +20,8 @@ class TransitionNet:
     index_to_state: {}
     transition_data: TransitionData
     state_grid_size: dict[int, (int, int)]
+    absolute_net: ndarray
+    probability_net: ndarray
 
     def __init__(self,
                  transition_data: TransitionData,
@@ -71,24 +75,25 @@ class TransitionNet:
         # invert state_to_index into index_to_state
         self.index_to_state = {v: k for k, v in self.state_to_index.items()}
 
-    # compute the cartesian product of (0, 1, 2, 3) and (0, 1, 2, 3)
+        # compute transitions
+        self.compute_transitions()
+
+        # compute absolute net
+        self.compute_absolute_net()
+
+        # compute relative net
+        self.compute_probability_net()
 
     def compute_transitions(self) -> [int, int]:
 
         transitions: [int, int] = []
         for instance_id in self.transition_data.get_unique_instance_ids():
 
-            print('####')
-            print('#### instance_id: ', instance_id, '####')
-            print('####')
-
             # get all grid points for this instance
             grid_points: dict[int, GridPoint] = self.transition_data.get_instance_grid_points(instance_id=instance_id)
 
             # iterate over each key in the dictionary (each known observation)
             for key in grid_points.keys():
-
-                print('#> key: ', key)
 
                 key_origin = key
 
@@ -127,8 +132,6 @@ class TransitionNet:
 
                     destination_list.append(destination_index)
 
-                print('origin_list: ', origin_list, 'destination_list: ', destination_list)
-
                 # if state is new, add to dictionary
                 if tuple(origin_list) not in self.transitions_to_index.keys():
                     self.transitions_to_index[tuple(origin_list)] = len(self.transitions_to_index)
@@ -142,7 +145,7 @@ class TransitionNet:
         self.index_to_transitions = {v: k for k, v in self.transitions_to_index.items()}
         return transitions
 
-    def compute_absolute_net(self):
+    def compute_absolute_net(self) -> np.ndarray:
         absolute_net = np.zeros((len(self.transitions_to_index), len(self.transitions_to_index)))
         for transition in self.transitions:
             absolute_net[
@@ -152,24 +155,49 @@ class TransitionNet:
 
         # convert to int
         absolute_net = absolute_net.astype(int)
+        self.absolute_net = absolute_net
         return absolute_net
+
+    def compute_probability_net(self) -> np.ndarray:
+        self.probability_net = self.absolute_net / (self.absolute_net.sum(axis=1, keepdims=True) + 0.0001)
+        return self.probability_net
+
+    def predict_transition(self, starting_vector: [int], round_to_int: bool = True):
+
+        destination_vector = np.dot(starting_vector, self.probability_net)
+
+        if round_to_int:
+            destination_vector = np.rint(destination_vector)
+
+        return destination_vector
+
+    def predict_n_steps(self, starting_index: int, n_steps: int, n_samples: int = 1) -> (np.ndarray, [np.ndarray]):
+
+        starting_vector = np.zeros(len(self.probability_net[0]))
+        starting_vector[starting_index] = n_samples
+
+        destination_vector = starting_vector
+        intermediate_vectors = [starting_vector]
+        for _ in range(n_steps):
+            destination_vector = self.predict_transition(starting_vector=destination_vector)
+            intermediate_vectors.append(destination_vector)
+        return destination_vector, intermediate_vectors
 
 
 td = TransitionData()
 td.add_txt_data(path_to_data='inference_data/transitions/Ch4_cam11_1.txt',
                 cam_id=11)
 
-t = td.get_instance_grid_points(instance_id=1)
-t2 = t[0].reassign_grid(grid_dim=(10, 10))
-
 tn = TransitionNet(transition_data=td,
-                   grid_dimensions=(2, 2),
-                   state_length=1,
+                   grid_dimensions=(40, 40),
+                   state_length=2,
                    state_scaler=1)
 
-od = tn.compute_transitions()
-an = tn.compute_absolute_net()
-
+start_time = time.time()
+d, i = tn.predict_n_steps(starting_index=0, n_steps=5, n_samples=1000000)
+end_time = time.time()
+# print time in mikro seconds
+print((end_time - start_time) * 1000000)
 
 def product(ar_list):
     if not ar_list:
