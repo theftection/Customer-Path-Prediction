@@ -95,7 +95,7 @@ class TransitionNet:
         print("transition_index", transition_index)
         return GridPoint.from_grid_cell(self.index_to_grid[transition_index], self.grid, self.resolution)
 
-    def predict_transition(self, point):
+    def predict_transition(self, point) -> GridPoint:
         point_index = self.grid_to_index[point.get_grid_cell()]
         transition_index = np.argmax(self.probability_net[point_index])
         return GridPoint.from_grid_cell(self.index_to_grid[transition_index], self.grid, self.resolution)

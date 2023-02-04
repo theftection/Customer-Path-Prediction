@@ -159,7 +159,7 @@ class TransitionNet:
         return absolute_net
 
     def compute_probability_net(self) -> np.ndarray:
-        self.probability_net = self.absolute_net / (self.absolute_net.sum(axis=1, keepdims=True) + 0.0001)
+        self.probability_net = self.absolute_net / (self.absolute_net.sum(axis=1, keepdims=True) + 0.0000001)
         return self.probability_net
 
     def predict_transition(self, starting_vector: [int], round_to_int: bool = True):
@@ -189,7 +189,7 @@ td.add_txt_data(path_to_data='inference_data/transitions/Ch4_cam11_1.txt',
                 cam_id=11)
 
 tn = TransitionNet(transition_data=td,
-                   grid_dimensions=(40, 40),
+                   grid_dimensions=(4, 4),
                    state_length=2,
                    state_scaler=1)
 
