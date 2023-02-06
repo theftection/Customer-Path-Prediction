@@ -83,7 +83,7 @@ def run(
         retina_masks=False,
 ):
 
-    tn = TransitionNet('inference_data/transitions/', (20,15), (960,720), 1)
+    tn = TransitionNet('path_prediction/transition_net/inference_data/transitions/', (20, 15), (960, 720), 1)
 
     source = str(source)
     save_img = not nosave and not source.endswith('.txt')  # save inference images
