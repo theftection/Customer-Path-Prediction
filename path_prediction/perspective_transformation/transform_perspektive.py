@@ -86,11 +86,13 @@ def estimate_floor_position(P_inv, camera_origin, bbox, redzones, avg_heigth=100
     # check if theoretical height is large enough
     # to assume the whole person is in the frame
     if top_center_world[0, 2] > 100 or "bottom_center" in "greenzone":
-        return correct_for_redzone(theo_standing_position, bottom_ray_3D, redzones).astype(int)
+        corrected_floor_position = correct_for_redzone(theo_standing_position, bottom_ray_3D, redzones)
+        return corrected_floor_position[0, :2].astype(int)
     else:
         head_t = (avg_heigth - camera_origin[2]) / top_ray_3D[:, 2]
         head_standing_position = camera_origin + top_ray_3D * head_t
-        return correct_for_redzone(head_standing_position, bottom_ray_3D, redzones).astype(int)
+        corrected_floor_position = correct_for_redzone(head_standing_position, bottom_ray_3D, redzones)
+        return corrected_floor_position[0, :2].astype(int)
 
 
 if __name__ == "__main__":
@@ -99,7 +101,7 @@ if __name__ == "__main__":
     P, P_inv, camera_origin = load_projection_matrix(project)
     redzones = np.array([[0, 0, 230, 400], 
                         [10, 15, 20, 25]])
-    bbox = [0, 0, 100, 100]
+    bbox = bbox = [430, 60, 475, 170]
     print(estimate_floor_position(P_inv, camera_origin, bbox, redzones))
 
 
