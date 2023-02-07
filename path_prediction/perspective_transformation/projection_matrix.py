@@ -57,7 +57,7 @@ def load_projection_matrix(project):
 if __name__ == "__main__":
 
     # load points
-    project = "test_impl"
+    project = "Ch4_demo_960"
     points_3D = np.load(f"inference_data/projection_matrix/{project}/points/points_3D.npy")
     points_2D = np.load(f"inference_data/projection_matrix/{project}/points/points_2D.npy")
 

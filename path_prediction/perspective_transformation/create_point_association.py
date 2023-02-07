@@ -62,8 +62,9 @@ def collect_2D_points(image):
 
 
 if __name__ == "__main__":
-    floor_plan = cv2.imread("path_prediction/perspective_transformation/Ch4_floor_plan.png")
-    image = cv2.imread("path_prediction/perspective_transformation/Ch4_image_undistorted.png")
+    project = input("Enter project/camera name: ")
+    floor_plan = cv2.imread(f"inference_data/projection_matrix/{project}/images/Ch4_floor_plan.png")
+    image = cv2.imread(f"inference_data/projection_matrix/{project}/images/Ch4_image_undistorted_960.png")
 
     if floor_plan is None or image is None:
         assert False, "Could not load images"
@@ -72,7 +73,6 @@ if __name__ == "__main__":
     points_2D = collect_2D_points(image)
 
     # save points
-    project = input("Enter project/camera name: ")
     os.makedirs(f"inference_data/projection_matrix/{project}/points", exist_ok=True)
     np.save(f"inference_data/projection_matrix/{project}/points/points_3D.npy", points_3D)
     np.save(f"inference_data/projection_matrix/{project}/points/points_2D.npy", points_2D)
