@@ -42,15 +42,15 @@ def bottom_center(bbox):
     x1, y1, x2, y2 = bbox
     return np.array([(x1 + x2) / 2, y2])
 
-def check_redzones(point, redzones):
-    for zone in redzones:
+def check_in_zones(point, zones):
+    for zone in zones:
         if point[0] > zone[0] and point[0] < zone[2] and point[1] > zone[1] and point[1] < zone[3]:
             return True, zone
     return False, None
 
 def correct_for_redzone(standing_position, ray_3D, redzones):
         standing_position = standing_position[0]
-        in_redzone, zone = check_redzones(standing_position, redzones)
+        in_redzone, zone = check_in_zones(standing_position, redzones)
         if in_redzone:
             t_x = (zone[2] - standing_position[0]) / ray_3D[:, 0]
             t_y = (zone[3] - standing_position[1]) / ray_3D[:, 1]
@@ -61,7 +61,7 @@ def correct_for_redzone(standing_position, ray_3D, redzones):
             standing_position = standing_position + ray_3D * t
         return standing_position
 
-def estimate_floor_position(P_inv, camera_origin, bbox, redzones, avg_heigth=100):
+def estimate_floor_position(P_inv, camera_origin, bbox, redzones, greenzones, avg_heigth=100):
     """Estimate floor position of person by checking how tall this
     person would be if the bbox would show the full person. If this
     is not the case take the head position as the estimate.
@@ -85,7 +85,7 @@ def estimate_floor_position(P_inv, camera_origin, bbox, redzones, avg_heigth=100
 
     # check if theoretical height is large enough
     # to assume the whole person is in the frame
-    if top_center_world[0, 2] > 100 or "bottom_center" in "greenzone":
+    if  False or check_in_zones(bottom_center_2D, greenzones)[0]: # first condition 'top_center_world[0, 2] > 100'
         corrected_floor_position = correct_for_redzone(theo_standing_position, bottom_ray_3D, redzones)
         return corrected_floor_position[0, :2].astype(int)
     else:
@@ -101,7 +101,9 @@ if __name__ == "__main__":
     P, P_inv, camera_origin = load_projection_matrix(project)
     redzones = np.array([[0, 0, 230, 400], 
                         [10, 15, 20, 25]])
-    bbox = bbox = [430, 60, 475, 170]
+    greenzones = np.array([[0, 0, 230, 400], 
+                        [10, 15, 20, 25]])
+    bbox = [430, 60, 475, 170]
     print(estimate_floor_position(P_inv, camera_origin, bbox, redzones))
 
 
