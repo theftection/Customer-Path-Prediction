@@ -1,7 +1,8 @@
 import cv2
 import numpy as np
 
-from projection_matrix import load_projection_matrix
+from path_prediction.perspective_transformation.projection_matrix import load_projection_matrix
+#from projection_matrix import load_projection_matrix
 
 
 def project_2D_to_3D(P_inv, camera_origin, point_2D, height):
@@ -49,17 +50,18 @@ def check_in_zones(point, zones):
     return False, None
 
 def correct_for_redzone(standing_position, ray_3D, redzones):
-        standing_position = standing_position[0]
-        in_redzone, zone = check_in_zones(standing_position, redzones)
+        floor_position = standing_position[0]
+        in_redzone, zone = check_in_zones(floor_position, redzones)
         if in_redzone:
-            t_x = (zone[2] - standing_position[0]) / ray_3D[:, 0]
-            t_y = (zone[3] - standing_position[1]) / ray_3D[:, 1]
-            t_x_neg = (zone[0] - standing_position[0]) / ray_3D[:, 0]
-            t_y_neg = (zone[1] - standing_position[1]) / ray_3D[:, 1]
+            t_x = (zone[2] - floor_position[0]) / ray_3D[:, 0]
+            t_y = (zone[3] - floor_position[1]) / ray_3D[:, 1]
+            t_x_neg = (zone[0] - floor_position[0]) / ray_3D[:, 0]
+            t_y_neg = (zone[1] - floor_position[1]) / ray_3D[:, 1]
             # take the t which has the smallest absolute value but keep the sign
             t = [t_x, t_y, t_x_neg, t_y_neg][np.argmin(np.abs([t_x, t_y, t_x_neg, t_y_neg]))]
-            standing_position = standing_position + ray_3D * t
-        return standing_position
+            floor_position = floor_position + ray_3D[0] * t
+            print("Corrected point from: ", standing_position[0], " -> ", floor_position)
+        return np.array([floor_position])
 
 def estimate_floor_position(P_inv, camera_origin, bbox, redzones, greenzones, avg_heigth=100):
     """Estimate floor position of person by checking how tall this
@@ -85,7 +87,7 @@ def estimate_floor_position(P_inv, camera_origin, bbox, redzones, greenzones, av
 
     # check if theoretical height is large enough
     # to assume the whole person is in the frame
-    if  False or check_in_zones(bottom_center_2D, greenzones)[0]: # first condition 'top_center_world[0, 2] > 100'
+    if  False or check_in_zones(bottom_center_2D[0], greenzones)[0]: # first condition 'top_center_world[0, 2] > 100'
         corrected_floor_position = correct_for_redzone(theo_standing_position, bottom_ray_3D, redzones)
         return corrected_floor_position[0, :2].astype(int)
     else:
@@ -99,12 +101,11 @@ if __name__ == "__main__":
     # load points
     project = "Ch4_demo_960"
     P, P_inv, camera_origin = load_projection_matrix(project)
-    redzones = np.array([[0, 0, 230, 400], 
-                        [10, 15, 20, 25]])
-    greenzones = np.array([[0, 0, 230, 400], 
-                        [10, 15, 20, 25]])
-    bbox = [430, 60, 475, 170]
-    print(estimate_floor_position(P_inv, camera_origin, bbox, redzones))
+    floor_redzones = np.array([[20, 495, 90, 615]])
+    image_greenzones = np.array([[0 , 500, 961, 721], 
+                                    [420, 100, 520, 540]])
+    bbox = [80, 120, 215, 200]
+    print(estimate_floor_position(P_inv, camera_origin, bbox, floor_redzones, image_greenzones))
 
 
 

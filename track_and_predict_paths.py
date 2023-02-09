@@ -42,13 +42,16 @@ from yolov8_tracking.yolov8.ultralytics.yolo.utils.plotting import Annotator, co
 
 from yolov8_tracking.trackers.multi_tracker_zoo import create_tracker
 
+from path_prediction.perspective_transformation.transform_perspektive import load_projection_matrix, estimate_floor_position
 from path_prediction.transition_net.transitionnet import TransitionNet
 from path_prediction.utils.plots import draw_predicted_path
+
 
 
 @torch.no_grad()
 def run(
         source='0',
+        projection=None,
         yolo_weights=WEIGHTS / 'yolov8n.pt',  # model.pt path(s),
         reid_weights=WEIGHTS / 'osnet_x0_25_msmt17.pt',  # model.pt path,
         tracking_method='strongsort',
@@ -81,6 +84,13 @@ def run(
         dnn=False,  # use OpenCV DNN for ONNX inference
         vid_stride=1,  # video frame-rate stride
 ):
+
+    save_projection = projection is not None
+    if save_projection:
+        floor_plan_im = cv2.imread(f"inference_data/projection_matrix/{projection}/images/floor_plan.png")
+        P, P_inv, camera_origin = load_projection_matrix(projection)
+        # TODO: red and greenzones should also be read in here
+        print(P, P_inv, camera_origin, floor_plan_im.shape)
 
     if save_paths:
         tn = TransitionNet('path_prediction/transition_net/inference_data/transitions/', (20, 15), (960, 720), 1)
@@ -215,6 +225,9 @@ def run(
                 with dt[3]:
                     outputs[i] = tracker_list[i].update(det.cpu(), im0)
                 
+
+                imfp = floor_plan_im.copy()
+
                 # draw boxes for visualization
                 if len(outputs[i]) > 0:
                     
@@ -250,6 +263,16 @@ def run(
                                 bbox_center = tn.transform_coordiante_to_point_datastructure(bbox_x, bbox_y)
                                 path = tn.predict_path(bbox_center, 4)
                                 draw_predicted_path(im0, path, (0,255,0), line_thickness)
+                            if save_projection and c==0:
+                                floor_redzones = np.array([[20, 395, 90, 615]])
+                                image_greenzones = np.array([[0 , 500, 961, 721], 
+                                                             [420, 100, 520, 540]])
+                                floor_position = estimate_floor_position(P_inv, camera_origin, bbox, floor_redzones, image_greenzones)
+                                try:
+                                    cv2.circle(imfp, tuple(floor_position), line_thickness+5, color, -1)
+                                except Exception as e:
+                                    print("!!FAILED to draw point on the map: ", floor_position, bbox)
+
 
                             if save_trajectories and tracking_method == 'strongsort':
                                 q = output[7]
@@ -264,6 +287,10 @@ def run(
                 
             # Stream results
             im0 = annotator.result()
+            if save_projection:
+                assert im0.shape[0] == imfp.shape[0], "Floorplan does not has the same heigth as the image"
+                im0 = np.concatenate((im0, imfp), axis=1)
+
             if show_vid:
                 if platform.system() == 'Linux' and p not in windows:
                     windows.append(p)
@@ -282,6 +309,8 @@ def run(
                     if vid_cap:  # video
                         fps = vid_cap.get(cv2.CAP_PROP_FPS)
                         w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                        if save_projection:
+                            w += int(floor_plan_im.shape[1])
                         h = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
                     else:  # stream
                         fps, w, h = 30, im0.shape[1], im0.shape[0]
@@ -308,6 +337,7 @@ if __name__ == "__main__":
     check_requirements(requirements=ROOT / 'requirements.txt', exclude=('tensorboard', 'thop'))
     run(
         source='inference_data/videos/Ch4_960_undis_track_short.mp4',
+        projection='Ch4_demo_960',
         yolo_weights=WEIGHTS / 'yolov8n.pt',  # model.pt path(s),
         reid_weights=WEIGHTS / 'osnet_x0_25_msmt17.pt',  # model.pt path,
         tracking_method='strongsort',
