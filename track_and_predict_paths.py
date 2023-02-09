@@ -63,6 +63,7 @@ def run(
         save_crop=False,  # save cropped prediction boxes
         save_trajectories=False,  # save trajectories for each track
         save_vid=False,  # save confidences in --save-txt labels
+        save_paths=False, # save the predicted paths from the transition net
         nosave=False,  # do not save images/videos
         classes=None,  # filter by class: --class 0, or --class 0 2 3
         agnostic_nms=False,  # class-agnostic NMS
@@ -79,10 +80,10 @@ def run(
         half=False,  # use FP16 half-precision inference
         dnn=False,  # use OpenCV DNN for ONNX inference
         vid_stride=1,  # video frame-rate stride
-        retina_masks=False,
 ):
 
-    tn = TransitionNet('path_prediction/transition_net/inference_data/transitions/', (20, 15), (960, 720), 1)
+    if save_paths:
+        tn = TransitionNet('path_prediction/transition_net/inference_data/transitions/', (20, 15), (960, 720), 1)
 
     if not tracking_config:
         tracking_config = ROOT / 'trackers' / tracking_method / 'configs' / (tracking_method + '.yaml')
@@ -242,7 +243,7 @@ def run(
                                 (f'{id} {conf:.2f}' if hide_class else f'{id} {names[c]} {conf:.2f}'))
                             color = colors(c, True)
                             annotator.box_label(bbox, label, color=color)
-                            if 'save_paths':
+                            if save_paths:
                                 # optain center point of bbox
                                 bbox_x = int(output[0] + (output[2] - output[0]) / 2)
                                 bbox_y = int(output[1] + (output[3] - output[1]) / 2)
@@ -306,14 +307,16 @@ def run(
 if __name__ == "__main__":
     check_requirements(requirements=ROOT / 'requirements.txt', exclude=('tensorboard', 'thop'))
     run(
-        source='inference_data/videos/track.mp4',
+        source='inference_data/videos/Ch4_960_undis_track_short.mp4',
         yolo_weights=WEIGHTS / 'yolov8n.pt',  # model.pt path(s),
         reid_weights=WEIGHTS / 'osnet_x0_25_msmt17.pt',  # model.pt path,
         tracking_method='strongsort',
+        imgsz=(960, 960),
         device='0',  # cuda device, i.e. 0 or 0,1,2,3 or cpu
         save_txt=True,  # save results to *.txt
         save_trajectories=False,  # save trajectories for each track
         save_vid=True,  # save confidences in --save-txt labels
+        save_paths=False, # save the predicted paths from the transition net
         classes=[0],  # filter by class: --class 0, or --class 0 2 3
         project=Path.cwd() / 'inference_data' / 'runs',  # save results to project/name
         name='exp',  # save results to project/name
