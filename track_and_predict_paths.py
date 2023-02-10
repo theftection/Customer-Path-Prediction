@@ -264,9 +264,9 @@ def run(
                                 path = tn.predict_path(bbox_center, 4)
                                 draw_predicted_path(im0, path, (0,255,0), line_thickness)
                             if save_projection and c==0:
-                                floor_redzones = np.array([[20, 395, 90, 615]])
+                                floor_redzones = np.array([[85, 396, 150, 615]])
                                 image_greenzones = np.array([[0 , 500, 961, 721], 
-                                                             [420, 100, 520, 540]])
+                                                             [410, 100, 525, 540]])
                                 floor_position = estimate_floor_position(P_inv, camera_origin, bbox, floor_redzones, image_greenzones)
                                 try:
                                     cv2.circle(imfp, tuple(floor_position), line_thickness+5, color, -1)
@@ -337,8 +337,8 @@ if __name__ == "__main__":
     check_requirements(requirements=ROOT / 'requirements.txt', exclude=('tensorboard', 'thop'))
     run(
         source='inference_data/videos/Ch4_960_undis_track_short.mp4',
-        projection='Ch4_demo_960',
-        yolo_weights=WEIGHTS / 'yolov8n.pt',  # model.pt path(s),
+        projection='Ch4_960',
+        yolo_weights=WEIGHTS / 'yolov8s_SD_EDEKA_Distorted.pt',  # model.pt path(s),
         reid_weights=WEIGHTS / 'osnet_x0_25_msmt17.pt',  # model.pt path,
         tracking_method='strongsort',
         imgsz=(960, 960),
