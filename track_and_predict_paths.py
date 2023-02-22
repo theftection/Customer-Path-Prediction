@@ -33,7 +33,7 @@ import logging
 from yolov8_tracking.yolov8.ultralytics.nn.autobackend import AutoBackend
 from yolov8_tracking.yolov8.ultralytics.yolo.data.dataloaders.stream_loaders import LoadImages, LoadStreams
 from yolov8_tracking.yolov8.ultralytics.yolo.data.utils import IMG_FORMATS, VID_FORMATS
-from yolov8_tracking.yolov8.ultralytics.yolo.utils import DEFAULT_CONFIG, LOGGER, SETTINGS, callbacks, colorstr, ops
+from yolov8_tracking.yolov8.ultralytics.yolo.utils import LOGGER, SETTINGS, callbacks, colorstr, ops
 from yolov8_tracking.yolov8.ultralytics.yolo.utils.checks import check_file, check_imgsz, check_imshow, print_args, check_requirements
 from yolov8_tracking.yolov8.ultralytics.yolo.utils.files import increment_path
 from yolov8_tracking.yolov8.ultralytics.yolo.utils.torch_utils import select_device
@@ -336,9 +336,9 @@ def run(
 if __name__ == "__main__":
     check_requirements(requirements=ROOT / 'requirements.txt', exclude=('tensorboard', 'thop'))
     run(
-        source='inference_data/videos/Ch4_960_undis_track_short.mp4',
+        source='inference_data/videos/Ch4_20221205102329_undistorted.mp4',
         projection='Ch4_960',
-        yolo_weights=WEIGHTS / 'yolov8s_SD_EDEKA_Distorted.pt',  # model.pt path(s),
+        yolo_weights=WEIGHTS / 'yolov8s.pt',  # model.pt path(s),
         reid_weights=WEIGHTS / 'osnet_x0_25_msmt17.pt',  # model.pt path,
         tracking_method='strongsort',
         imgsz=(960, 960),
