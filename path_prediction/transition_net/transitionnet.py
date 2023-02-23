@@ -2,9 +2,9 @@ import os
 import numpy as np
 import pandas as pd
 
-from path_prediction.transition_net.gridpoint import GridPoint
+from path_prediction.transition_net.gridpoint import GridPoint # for production
+# from gridpoint import GridPoint # for testing
 
-# from gridpoint import GridPoint
 '''
     TransitionNet class
     this class reads in a txt file with ids and coordinates of the points
@@ -62,12 +62,10 @@ class TransitionNet:
                         to_grid_point = data_per_id.loc[index + 1, 'grid_point']
                         self.absolute_net[self.grid_to_index[from_grid_point], self.grid_to_index[to_grid_point]] += 1
 
-        print("2", self.absolute_net)
         if not count_standing:
             # remove standing transistions
             self.absolute_net = self.absolute_net - np.diag(np.diag(self.absolute_net))
 
-        print("3", self.absolute_net)
         if not count_huge_movement:
             # remove transitions larger than 1
             for i, j in self.grid_to_index.keys():
@@ -75,7 +73,6 @@ class TransitionNet:
                     if abs(i - k) > 1 or abs(j - l) > 1:
                         self.absolute_net[self.grid_to_index[(i, j)], self.grid_to_index[(k, l)]] = 0
 
-        print("4", self.absolute_net)
         # normalize absolute transition net to probabilities
         self.probability_net = self.absolute_net / self.absolute_net.sum(axis=1, keepdims=True)
 
@@ -84,15 +81,10 @@ class TransitionNet:
 
     def sample_transition(self, point):
         point_index = self.grid_to_index[point.get_grid_cell()]
-        print("point_index", point_index)
         point_vector = np.zeros(self.absolute_net.shape[0])
-        print("point_vector", point_vector)
         point_vector[point_index] = 1
-        print("point_vector", point_vector)
         transition_vector = np.dot(point_vector, self.probability_net)
-        print("transition_vector", transition_vector)
         transition_index = np.random.choice(range(len(transition_vector)), p=transition_vector)
-        print("transition_index", transition_index)
         return GridPoint.from_grid_cell(self.index_to_grid[transition_index], self.grid, self.resolution)
 
     def predict_transition(self, point) -> GridPoint:
