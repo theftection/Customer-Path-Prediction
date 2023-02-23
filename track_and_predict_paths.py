@@ -62,7 +62,7 @@ def run(
         max_det=1000,  # maximum detections per image
         device='',  # cuda device, i.e. 0 or 0,1,2,3 or cpu
         show_vid=False,  # show results
-        save_txt=False,  # save results to *.txt
+        save_transitions=False,  # save results to *.txt
         save_crop=False,  # save cropped prediction boxes
         save_trajectories=False,  # save trajectories for each track
         save_vid=False,  # save confidences in --save-txt labels
@@ -116,7 +116,7 @@ def run(
         exp_name = 'ensemble'
     exp_name = name if name else exp_name + "_" + reid_weights.stem
     save_dir = increment_path(Path(project) / exp_name, exist_ok=exist_ok)  # increment run
-    (save_dir / 'tracks' if save_txt else save_dir).mkdir(parents=True, exist_ok=True)  # make dir
+    (save_dir / 'tracks' if save_transitions else save_dir).mkdir(parents=True, exist_ok=True)  # make dir
 
     # Load model
     device = select_device(device)
@@ -165,6 +165,7 @@ def run(
     curr_frames, prev_frames = [None] * nr_sources, [None] * nr_sources
     for frame_idx, batch in enumerate(dataset):
         path, im, im0s, vid_cap, s = batch
+        imfp = floor_plan_im.copy() # clean floor plan image for each frame
         visualize = increment_path(save_dir / Path(path[0]).stem, mkdir=True) if visualize else False
         with dt[0]:
             im = torch.from_numpy(im).to(device)
@@ -226,8 +227,6 @@ def run(
                     outputs[i] = tracker_list[i].update(det.cpu(), im0)
                 
 
-                imfp = floor_plan_im.copy()
-
                 # draw boxes for visualization
                 if len(outputs[i]) > 0:
                     
@@ -237,17 +236,6 @@ def run(
                         id = output[4]
                         cls = output[5]
                         conf = output[6]
-
-                        if save_txt:
-                            # to MOT format
-                            bbox_left = output[0]
-                            bbox_top = output[1]
-                            bbox_w = output[2] - output[0]
-                            bbox_h = output[3] - output[1]
-                            # Write MOT compliant results to file
-                            with open(txt_path + '.txt', 'a') as f:
-                                f.write(('%g ' * 10 + '\n') % (frame_idx + 1, id, bbox_left,  # MOT format
-                                                               bbox_top, bbox_w, bbox_h, -1, -1, -1, i))
 
                         if save_vid or save_crop or show_vid:  # Add bbox/seg to image
                             c = int(cls)  # integer class
@@ -268,10 +256,11 @@ def run(
                                 image_greenzones = np.array([[0 , 500, 961, 721], 
                                                              [410, 100, 525, 540]])
                                 floor_position = estimate_floor_position(P_inv, camera_origin, bbox, floor_redzones, image_greenzones)
-                                try:
-                                    cv2.circle(imfp, tuple(floor_position), line_thickness+5, color, -1)
-                                except Exception as e:
-                                    print("!!FAILED to draw point on the map: ", floor_position, bbox)
+                                cv2.circle(imfp, tuple(floor_position), line_thickness+5, color, -1)
+
+                                if save_transitions:
+                                    with open(txt_path + '.txt', 'a') as f:
+                                        f.write(('%g ' * 4 + '\n') % (frame_idx + 1, id, floor_position[0], floor_position[1]))
 
 
                             if save_trajectories and tracking_method == 'strongsort':
@@ -326,8 +315,8 @@ def run(
     # Print results
     t = tuple(x.t / seen * 1E3 for x in dt)  # speeds per image
     LOGGER.info(f'Speed: %.1fms pre-process, %.1fms inference, %.1fms NMS, %.1fms {tracking_method} update per image at shape {(1, 3, *imgsz)}' % t)
-    if save_txt or save_vid:
-        s = f"\n{len(list((save_dir / 'tracks').glob('*.txt')))} tracks saved to {save_dir / 'tracks'}" if save_txt else ''
+    if save_transitions or save_vid:
+        s = f"\n{len(list((save_dir / 'tracks').glob('*.txt')))} tracks saved to {save_dir / 'tracks'}" if save_transitions else ''
         LOGGER.info(f"Results saved to {colorstr('bold', save_dir)}{s}")
     if update:
         strip_optimizer(yolo_weights)  # update model (to fix SourceChangeWarning)
@@ -343,7 +332,7 @@ if __name__ == "__main__":
         tracking_method='strongsort',
         imgsz=(960, 960),
         device='0',  # cuda device, i.e. 0 or 0,1,2,3 or cpu
-        save_txt=True,  # save results to *.txt
+        save_transitions=True,  # save floor_positions to *.txt
         save_trajectories=False,  # save trajectories for each track
         save_vid=True,  # save confidences in --save-txt labels
         save_paths=False, # save the predicted paths from the transition net
