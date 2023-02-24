@@ -15,7 +15,7 @@ class GridPoint:
 
         #check if point is in frame
         if x < 0 or x > self.resolution[0] or y < 0 or y > self.resolution[1]:
-            raise ValueError('Point is not in frame')
+            raise ValueError(f'Point {x,y} is not in frame')
 
         # calculate grid cell
         self.grid_cell = (int(x / self.grid_width), int(y / self.grid_height))

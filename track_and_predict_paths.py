@@ -88,12 +88,14 @@ def run(
     save_projection = projection is not None
     if save_projection:
         floor_plan_im = cv2.imread(f"inference_data/projection_matrix/{projection}/images/floor_plan.png")
+        floor_h = floor_plan_im.shape[0]
+        floor_w = floor_plan_im.shape[1]
         P, P_inv, camera_origin = load_projection_matrix(projection)
         # TODO: red and greenzones should also be read in here
         print(P, P_inv, camera_origin, floor_plan_im.shape)
 
     if save_paths:
-        tn = TransitionNet('path_prediction/transition_net/inference_data/transitions/', (20, 15), (960, 720), 1)
+        tn = TransitionNet('inference_data/transitions/', (30, 40), (floor_w, floor_h), 1)
 
     if not tracking_config:
         tracking_config = ROOT / 'trackers' / tracking_method / 'configs' / (tracking_method + '.yaml')
@@ -117,6 +119,7 @@ def run(
     exp_name = name if name else exp_name + "_" + reid_weights.stem
     save_dir = increment_path(Path(project) / exp_name, exist_ok=exist_ok)  # increment run
     (save_dir / 'tracks' if save_transitions else save_dir).mkdir(parents=True, exist_ok=True)  # make dir
+
 
     # Load model
     device = select_device(device)
@@ -244,23 +247,25 @@ def run(
                                 (f'{id} {conf:.2f}' if hide_class else f'{id} {names[c]} {conf:.2f}'))
                             color = colors(c, True)
                             annotator.box_label(bbox, label, color=color)
-                            if save_paths:
-                                # optain center point of bbox
-                                bbox_x = int(output[0] + (output[2] - output[0]) / 2)
-                                bbox_y = int(output[1] + (output[3] - output[1]) / 2)
-                                bbox_center = tn.transform_coordiante_to_point_datastructure(bbox_x, bbox_y)
-                                path = tn.predict_path(bbox_center, 4)
-                                draw_predicted_path(im0, path, (0,255,0), line_thickness)
+                           
                             if save_projection and c==0:
                                 floor_redzones = np.array([[85, 396, 150, 615]])
                                 image_greenzones = np.array([[0 , 500, 961, 721], 
                                                              [410, 100, 525, 540]])
-                                floor_position = estimate_floor_position(P_inv, camera_origin, bbox, floor_redzones, image_greenzones)
-                                cv2.circle(imfp, tuple(floor_position), line_thickness+5, color, -1)
+                                floor_position = tuple(estimate_floor_position(P_inv, camera_origin, bbox, floor_redzones, image_greenzones))
+                                cv2.circle(imfp, floor_position, line_thickness+5, color, -1)
 
-                                if save_transitions:
+                                x, y = floor_position
+
+                                if save_transitions and x > 0 and x < floor_w and y > 0 and y < floor_h:
+
                                     with open(txt_path + '.txt', 'a') as f:
                                         f.write(('%g ' * 4 + '\n') % (frame_idx + 1, id, floor_position[0], floor_position[1]))
+
+                                if save_paths:
+                                    floor_point = tn.transform_coordiante_to_point_datastructure(x, y)
+                                    path = tn.predict_path(floor_point, 4)
+                                    draw_predicted_path(imfp, path, (0,255,0), line_thickness)
 
 
                             if save_trajectories and tracking_method == 'strongsort':
@@ -335,7 +340,7 @@ if __name__ == "__main__":
         save_transitions=True,  # save floor_positions to *.txt
         save_trajectories=False,  # save trajectories for each track
         save_vid=True,  # save confidences in --save-txt labels
-        save_paths=False, # save the predicted paths from the transition net
+        save_paths=True, # save the predicted paths from the transition net
         classes=[0],  # filter by class: --class 0, or --class 0 2 3
         project=Path.cwd() / 'inference_data' / 'runs',  # save results to project/name
         name='exp',  # save results to project/name

@@ -32,22 +32,18 @@ class TransitionNet:
 
         # create transition net with probabilities and absolutes
         self.absolute_net = np.ones((grid[0] * grid[1], grid[0] * grid[1]))
-        print("1", self.absolute_net)
 
-        count = 0
         # read in data dir and iterate over files
         for file in os.listdir(data_dir):
             if not file.endswith(".txt"):
                 continue
             data = pd.read_csv(data_dir + file, sep=' ', index_col=False)
-            data.drop(['ign', 'ign2', 'ign3', 'class'], axis=1, inplace=True)
 
             grouped = data.groupby('id')
             for index, data_per_id in grouped:
                 data_per_id['Frame'] = data_per_id['Frame'] // frames_per_step
                 data_per_id = data_per_id.groupby('Frame').mean().round(0)
-                data_per_id['center_coordinates'] = list(
-                    zip(data_per_id.x + data_per_id.w / 2, data_per_id.y + data_per_id.h / 2))
+                data_per_id['center_coordinates'] = tuple(zip(data_per_id.x, data_per_id.y))
                 data_per_id['grid_point'] = data_per_id.center_coordinates.apply(
                     lambda x: GridPoint(x[0], x[1], grid, resolution).get_grid_cell())
                 data_per_id = data_per_id.reset_index(level=0)
@@ -107,7 +103,7 @@ class TransitionNet:
         return path
 
 if __name__ == '__main__':
-    tn = TransitionNet('inference_data/transitions/', (20, 15), (960, 720), 2)
+    tn = TransitionNet('inference_data/transitions/', (10, 15), (500, 720), 2)
 
     # # print transitions
     # for i, j in tn.grid_to_index.keys():
