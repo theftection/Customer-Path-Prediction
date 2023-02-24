@@ -64,6 +64,7 @@ def run(
         save_vid=False,  # save annotated video
         nosave=False,  # do not save images/videos
         floor_plan_projection=None,  # camera projection on floor plan
+        save_floor_positions=False,  # save floor positions
         classes=None,  # filter by class: --class 0, or --class 0 2 3
         agnostic_nms=False,  # class-agnostic NMS
         augment=False,  # augmented inference
@@ -254,6 +255,10 @@ def run(
                                 floor_position = tuple(estimate_floor_position(P_inv, camera_origin, bbox, floor_redzones, image_greenzones))
                                 cv2.circle(imfp, floor_position, line_thickness+6, color, -1)
 
+                                if save_floor_positions:
+                                    with open(txt_path + '_floor_positions.txt', 'a') as f:
+                                        f.write(('%g ' * 4 + '\n') % (frame_idx + 1, id, floor_position[0], floor_position[1]))
+
                             if save_trajectories and tracking_method == 'strongsort':
                                 q = output[7]
                                 tracker_list[i].trajectory(im0, q, color=color)
@@ -323,6 +328,7 @@ if __name__ == "__main__":
         save_txt=True,  # save results to *.txt
         save_vid=True,  # save the annotated video
         floor_plan_projection="Ch4_960",  # project the annotated video onto the floor plan
+        save_floor_positions=True,  # save the floor positions of the annotated video to .txt
         classes=[0],  # filter by class: --class 0, or --class 0 2 3
         project=Path.cwd() / 'inference_data' / 'runs',  # save results to project/name
     )
