@@ -1,8 +1,6 @@
 import cv2
 import numpy as np
-
-from path_prediction.perspective_transformation.projection_matrix import load_projection_matrix
-#from projection_matrix import load_projection_matrix
+from pathlib import Path
 
 
 def project_2D_to_3D(P_inv, camera_origin, point_2D, height):
@@ -95,6 +93,19 @@ def estimate_floor_position(P_inv, camera_origin, bbox, redzones, greenzones, av
         head_standing_position = camera_origin + top_ray_3D * head_t
         corrected_floor_position = correct_for_redzone(head_standing_position, bottom_ray_3D, redzones)
         return corrected_floor_position[0, :2].astype(int)
+    
+def load_zones(project: Path):
+    with open(str(project / "floor_redzones.txt"), "r") as f:
+        floor_redzones = [list(map(float, line.split())) for line in f]
+    with open(str(project / "image_greenzones.txt"), "r") as f:
+        image_greenzones = [list(map(float, line.split())) for line in f]
+    return floor_redzones, image_greenzones
+
+def load_projection_matrix(project: Path):
+    P = np.load(str(project / "projection_matrix.npy"))
+    P_inv = np.load(str(project / "projection_matrix_inv.npy"))
+    camera_origin = np.load(str(project / "camera_origin.npy"))
+    return P, P_inv, camera_origin
 
 
 if __name__ == "__main__":

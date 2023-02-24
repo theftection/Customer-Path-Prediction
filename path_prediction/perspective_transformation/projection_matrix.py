@@ -46,12 +46,6 @@ def compute_camera_center(P):
     return np.squeeze(-np.matmul(np.linalg.inv(Q[0]), Q[1]))
 
 
-def load_projection_matrix(project):
-    P = np.load(f"inference_data/projection_matrix/{project}/projection_matrix.npy")
-    P_inv = np.load(f"inference_data/projection_matrix/{project}/projection_matrix_inv.npy")
-    camera_origin = np.load(f"inference_data/projection_matrix/{project}/camera_origin.npy")
-    return P, P_inv, camera_origin
-
 
 
 if __name__ == "__main__":

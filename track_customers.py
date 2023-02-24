@@ -41,6 +41,8 @@ from yolov8_tracking.yolov8.ultralytics.yolo.utils.plotting import Annotator, co
 
 from yolov8_tracking.trackers.multi_tracker_zoo import create_tracker
 
+from path_prediction.perspective_transformation.transform_perspektive import load_projection_matrix, load_zones, estimate_floor_position
+
 
 @torch.no_grad()
 def run(
@@ -61,6 +63,7 @@ def run(
         save_trajectories=False,  # save trajectories for each track
         save_vid=False,  # save annotated video
         nosave=False,  # do not save images/videos
+        floor_plan_projection=None,  # camera projection on floor plan
         classes=None,  # filter by class: --class 0, or --class 0 2 3
         agnostic_nms=False,  # class-agnostic NMS
         augment=False,  # augmented inference
@@ -78,6 +81,16 @@ def run(
         vid_stride=1,  # video frame-rate stride
         retina_masks=False,
 ):
+
+    save_projection = floor_plan_projection is not None
+    if save_projection:
+        projection_project = FILE.parents[0] / "inference_data" / "projection_matrix" / floor_plan_projection
+        floor_plan_im = cv2.imread(str(projection_project / "images" / "floor_plan.png"))
+        P, P_inv, camera_origin = load_projection_matrix(projection_project)
+        floor_redzones, image_greenzones = load_zones(projection_project / "zones")
+        print(P, P_inv, camera_origin, floor_plan_im.shape)
+        print(floor_redzones, image_greenzones)
+
 
     if not tracking_config:
         tracking_config = ROOT / 'trackers' / tracking_method / 'configs' / (tracking_method + '.yaml')
@@ -147,6 +160,7 @@ def run(
     curr_frames, prev_frames = [None] * bs, [None] * bs
     for frame_idx, batch in enumerate(dataset):
         path, im, im0s, vid_cap, s = batch
+        imfp = floor_plan_im.copy() # clean floor plan image for each frame
         visualize = increment_path(save_dir / Path(path[0]).stem, mkdir=True) if visualize else False
         with dt[0]:
             im = torch.from_numpy(im).to(device)
@@ -235,7 +249,11 @@ def run(
                                 (f'{id} {conf:.2f}' if hide_class else f'{id} {names[c]} {conf:.2f}'))
                             color = colors(c, True)
                             annotator.box_label(bbox, label, color=color)
-                            
+
+                            if save_projection and c==0:
+                                floor_position = tuple(estimate_floor_position(P_inv, camera_origin, bbox, floor_redzones, image_greenzones))
+                                cv2.circle(imfp, floor_position, line_thickness+6, color, -1)
+
                             if save_trajectories and tracking_method == 'strongsort':
                                 q = output[7]
                                 tracker_list[i].trajectory(im0, q, color=color)
@@ -248,6 +266,11 @@ def run(
                 
             # Stream results
             im0 = annotator.result()
+            if save_projection:
+                assert im0.shape[0] == imfp.shape[0], "Floorplan does not has the same heigth as the image"
+                im0 = np.concatenate((im0, imfp), axis=1)
+
+            
             if show_vid:
                 if platform.system() == 'Linux' and p not in windows:
                     windows.append(p)
@@ -266,6 +289,8 @@ def run(
                     if vid_cap:  # video
                         fps = vid_cap.get(cv2.CAP_PROP_FPS)
                         w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                        if save_projection:
+                            w += int(floor_plan_im.shape[1])
                         h = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
                     else:  # stream
                         fps, w, h = 30, im0.shape[1], im0.shape[0]
@@ -296,9 +321,8 @@ if __name__ == "__main__":
         imgsz=(640, 640),
         device='0',  # cuda device, i.e. 0 or 0,1,2,3 or cpu
         save_txt=True,  # save results to *.txt
-        save_vid=False,  # save the annotated video
+        save_vid=True,  # save the annotated video
+        floor_plan_projection="Ch4_960",  # project the annotated video onto the floor plan
         classes=[0],  # filter by class: --class 0, or --class 0 2 3
         project=Path.cwd() / 'inference_data' / 'runs',  # save results to project/name
-        name='exp',  # save results to project/name
-        line_thickness=2,  # bounding box thickness (pixels)
     )
