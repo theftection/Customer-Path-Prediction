@@ -43,6 +43,9 @@ from yolov8_tracking.trackers.multi_tracker_zoo import create_tracker
 
 from path_prediction.perspective_transformation.transform_perspektive import load_projection_matrix, load_zones, estimate_floor_position
 
+from path_prediction.transition_net.transition_data import TransitionData
+from path_prediction.transition_net.transition_net import TransitionNet
+
 
 @torch.no_grad()
 def run(
@@ -65,6 +68,7 @@ def run(
         nosave=False,  # do not save images/videos
         floor_plan_projection=None,  # camera projection on floor plan
         save_floor_positions=False,  # save floor positions
+        predict_customer_path=False,  # predict customer path
         classes=None,  # filter by class: --class 0, or --class 0 2 3
         agnostic_nms=False,  # class-agnostic NMS
         augment=False,  # augmented inference
@@ -91,6 +95,14 @@ def run(
         floor_redzones, image_greenzones = load_zones(projection_project / "zones")
         print(P, P_inv, camera_origin, floor_plan_im.shape)
         print(floor_redzones, image_greenzones)
+
+    if predict_customer_path:
+        transition_data_dir = FILE.parents[0] / "inference_data" / "transition_data"
+        transition_data = TransitionData()
+        transition_data.load_floorplan_folder(str(transition_data_dir), source_resolution=floor_plan_im.shape, cam_id=4)
+        print(transition_data.raw_data.head(30))
+        tn = TransitionNet(transition_data, grid_dimensions=(10, 15), state_length=1, state_scaler=1)
+        print(tn)
 
 
     if not tracking_config:
@@ -329,6 +341,7 @@ if __name__ == "__main__":
         save_vid=True,  # save the annotated video
         floor_plan_projection="Ch4_960",  # project the annotated video onto the floor plan
         save_floor_positions=True,  # save the floor positions of the annotated video to .txt
+        predict_customer_path=True,  # predict the path of the customer
         classes=[0],  # filter by class: --class 0, or --class 0 2 3
         project=Path.cwd() / 'inference_data' / 'runs',  # save results to project/name
     )

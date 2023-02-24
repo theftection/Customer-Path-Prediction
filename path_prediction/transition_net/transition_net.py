@@ -7,7 +7,7 @@ import numpy as np
 from numpy import ndarray
 
 from path_prediction.transition_net.grid_point import GridPoint
-from transition_data import TransitionData
+from path_prediction.transition_net.transition_data import TransitionData
 
 
 class TransitionNet:
@@ -184,28 +184,34 @@ class TransitionNet:
         return destination_vector, intermediate_vectors
 
 
-td = TransitionData()
-td.add_txt_data(path_to_data='inference_data/transitions/Ch4_cam11_1.txt',
-                cam_id=11)
 
-tn = TransitionNet(transition_data=td,
-                   grid_dimensions=(4, 4),
-                   state_length=2,
-                   state_scaler=1)
 
-start_time = time.time()
-d, i = tn.predict_n_steps(starting_index=0, n_steps=5, n_samples=1000000)
-end_time = time.time()
-# print time in mikro seconds
-print((end_time - start_time) * 1000000)
 
-def product(ar_list):
-    if not ar_list:
-        yield ()
-    else:
-        for a in ar_list[0]:
-            for prod in product(ar_list[1:]):
-                print('a: ', a, 'prod: ', prod)
-                yield (a,) + prod
 
-# p = list(product(tn.test))
+
+
+if __name__ == '__main__':
+    
+    td = TransitionData()
+    td.add_txt_data(path_to_data='inference_data/transitions/Ch4_cam11_1.txt',
+                    cam_id=11)
+
+    tn = TransitionNet(transition_data=td,
+                    grid_dimensions=(4, 4),
+                    state_length=2,
+                    state_scaler=1)
+
+    start_time = time.time()
+    d, i = tn.predict_n_steps(starting_index=0, n_steps=5, n_samples=1000000)
+    end_time = time.time()
+    # print time in mikro seconds
+    print((end_time - start_time) * 1000000)
+
+    def product(ar_list):
+        if not ar_list:
+            yield ()
+        else:
+            for a in ar_list[0]:
+                for prod in product(ar_list[1:]):
+                    print('a: ', a, 'prod: ', prod)
+                    yield (a,) + prod

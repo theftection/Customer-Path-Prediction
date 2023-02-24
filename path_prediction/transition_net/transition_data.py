@@ -1,11 +1,8 @@
-from typing import Dict, Any
-
-import pandas
+import os
 import pandas as pd
-from pandas import DataFrame
 from enum import Enum
-from grid_point import GridPoint
 
+from path_prediction.transition_net.grid_point import GridPoint
 
 def data_aggregate_framerate(df, frame_rate):
     df['Frame'] = df['Frame'] // frame_rate
@@ -19,11 +16,10 @@ class BoundingBoxAdjustment(Enum):
     BOTTOM_CENTER = "BOTTOM_CENTER"
     TOP_LEFT = "TOP_LEFT"
 
-
-# ToDo: Prevent cam 0 from being used
-# ToDo: Add quick-access for unique cam-ids
+# TODO: Prevent cam 0 from being used
+# TODO: Add quick-access for unique cam-ids
 class TransitionData:
-    raw_data: DataFrame
+    raw_data: pd.DataFrame
     highest_id: int
     unique_cam_ids: {}
 
@@ -32,10 +28,9 @@ class TransitionData:
         self.highest_id = -1
         self.unique_cam_ids = {}
 
-    def add_txt_data(self, path_to_data: str, source_resolution: (int, int) = (960, 720),
-                     invert_x: bool = False, invert_y: bool = False,
-                     bounding_box_adjustment: BoundingBoxAdjustment = BoundingBoxAdjustment.CENTER,
-                     cam_id: int = 1, frame_rate: int = 24) -> None:
+    def add_floorplan_txt_data(self, path_to_data: str, source_resolution: (int, int) = (960, 720),
+                 invert_x: bool = False, invert_y: bool = False,
+                 cam_id: int = 1, frame_rate: int = 24):
 
         # if cam id is 0 throw an exception
         if cam_id == 0:
@@ -48,29 +43,13 @@ class TransitionData:
         # adjust cam_id to be increasing
         cam_id = self.unique_cam_ids[cam_id]
 
-        new_data: DataFrame = pd.read_csv(path_to_data, sep=' ', index_col=False)
+        new_data: pd.DataFrame = pd.read_csv(path_to_data, sep=' ', index_col=False)
 
         # invert data if necessary
         if invert_x:
             new_data['x'] = source_resolution[0] - new_data['x']
         if invert_y:
             new_data['y'] = source_resolution[1] - new_data['y']
-
-        # adjust bounding box
-        # (x,y) is the top left corner of the bounding box
-        # (x+w,y+h) is the bottom right corner of the bounding box
-        # x increases to the right
-        # y increases to the bottom
-        if bounding_box_adjustment == BoundingBoxAdjustment.TOP_LEFT:
-            pass
-        elif bounding_box_adjustment == BoundingBoxAdjustment.BOTTOM_LEFT:
-            new_data['y'] = new_data['y'] + new_data['h']
-        elif bounding_box_adjustment == BoundingBoxAdjustment.BOTTOM_CENTER:
-            new_data['y'] = new_data['y'] + new_data['h']
-            new_data['x'] = new_data['x'] + new_data['w'] / 2
-        elif bounding_box_adjustment == BoundingBoxAdjustment.CENTER:
-            new_data['y'] = new_data['y'] + new_data['h'] / 2
-            new_data['x'] = new_data['x'] + new_data['w'] / 2
 
         # aggregate frame rate per instance id
         grouped = new_data.groupby(['id'])
@@ -82,8 +61,13 @@ class TransitionData:
         new_data['y'] = new_data['y'] / source_resolution[1]
 
         # drop unnecessary columns and rename columns
-        new_data.drop(['ign', 'ign2', 'ign3', 'class', 'w', 'h'], axis=1, inplace=True)
         new_data.rename(columns={'Frame': 'frame_id', 'id': 'instance_id', 'x': 'x_rel', 'y': 'y_rel'}, inplace=True)
+
+        # remove all rows where x_rel or y_rel is <0 or larger than 1
+        new_data = new_data[new_data['x_rel'] >= 0]
+        new_data = new_data[new_data['x_rel'] <= 1]
+        new_data = new_data[new_data['y_rel'] >= 0]
+        new_data = new_data[new_data['y_rel'] <= 1]
 
         # add source_id column
         new_data['cam_id'] = cam_id
@@ -94,18 +78,22 @@ class TransitionData:
             new_data['instance_id'] = new_data['instance_id'] + self.highest_id
 
         # add it to the raw data
-        self.raw_data = pandas.concat([self.raw_data, new_data], ignore_index=True)
+        self.raw_data = pd.concat([self.raw_data, new_data], ignore_index=True)
         self.highest_id = self.raw_data['instance_id'].max()
+    
+
+    def load_floorplan_folder(self, folder_path: str, source_resolution: (int, int), cam_id: int):
+        for file in os.listdir(folder_path):
+            if file.endswith("_floor_positions.txt"):
+                file_path = os.path.join(folder_path, file)
+                print("Loading file: " + file_path + " to transition_data")
+                self.add_floorplan_txt_data(path_to_data=file_path)
+                
 
     def get_unique_instance_ids(self) -> list:
         return self.raw_data['instance_id'].unique().tolist()
 
     def get_instance_grid_points(self, instance_id: int) -> dict[int, GridPoint]:
-        """
-        Returns the grid points of a specific instance
-        :param instance_id: the id of the instance
-        :return: a dictionary with the frame id as key and the grid point as value
-        """
         instance_data = self.raw_data[self.raw_data['instance_id'] == instance_id]
         instance_data = instance_data.sort_values(by=['frame_id'])
         
@@ -124,5 +112,6 @@ class TransitionData:
         return grid_point_dict
 
 
-td = TransitionData()
-td.add_txt_data(path_to_data='inference_data/transitions/Ch4_cam11_1.txt')
+if __name__ == "__main__":
+    td = TransitionData()
+    td.add_txt_data(path_to_data='inference_data/transitions/Ch4_cam11_1.txt')
