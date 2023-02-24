@@ -16,7 +16,7 @@ import torch
 import torch.backends.cudnn as cudnn
 
 FILE = Path(__file__).resolve()
-ROOT = FILE.parents[0]  # yolov5 strongsort root directory
+ROOT = FILE.parents[0] / 'yolov8_tracking'  # yolov8 strongsort root directory
 WEIGHTS = ROOT / 'weights'
 
 if str(ROOT) not in sys.path:
@@ -29,26 +29,26 @@ if str(ROOT / 'trackers' / 'strongsort') not in sys.path:
 ROOT = Path(os.path.relpath(ROOT, Path.cwd()))  # relative
 
 import logging
-from yolov8.ultralytics.nn.autobackend import AutoBackend
-from yolov8.ultralytics.yolo.data.dataloaders.stream_loaders import LoadImages, LoadStreams
-from yolov8.ultralytics.yolo.data.utils import IMG_FORMATS, VID_FORMATS
-from yolov8.ultralytics.yolo.utils import DEFAULT_CFG, LOGGER, SETTINGS, callbacks, colorstr, ops
-from yolov8.ultralytics.yolo.utils.checks import check_file, check_imgsz, check_imshow, print_args, check_requirements
-from yolov8.ultralytics.yolo.utils.files import increment_path
-from yolov8.ultralytics.yolo.utils.torch_utils import select_device
-from yolov8.ultralytics.yolo.utils.ops import Profile, non_max_suppression, scale_boxes, process_mask, process_mask_native
-from yolov8.ultralytics.yolo.utils.plotting import Annotator, colors, save_one_box
+from yolov8_tracking.yolov8.ultralytics.nn.autobackend import AutoBackend
+from yolov8_tracking.yolov8.ultralytics.yolo.data.dataloaders.stream_loaders import LoadImages, LoadStreams
+from yolov8_tracking.yolov8.ultralytics.yolo.data.utils import IMG_FORMATS, VID_FORMATS
+from yolov8_tracking.yolov8.ultralytics.yolo.utils import DEFAULT_CFG, LOGGER, SETTINGS, callbacks, colorstr, ops
+from yolov8_tracking.yolov8.ultralytics.yolo.utils.checks import check_file, check_imgsz, check_imshow, print_args, check_requirements
+from yolov8_tracking.yolov8.ultralytics.yolo.utils.files import increment_path
+from yolov8_tracking.yolov8.ultralytics.yolo.utils.torch_utils import select_device
+from yolov8_tracking.yolov8.ultralytics.yolo.utils.ops import Profile, non_max_suppression, scale_boxes, process_mask, process_mask_native
+from yolov8_tracking.yolov8.ultralytics.yolo.utils.plotting import Annotator, colors, save_one_box
 
-from trackers.multi_tracker_zoo import create_tracker
+from yolov8_tracking.trackers.multi_tracker_zoo import create_tracker
 
 
 @torch.no_grad()
 def run(
         source='0',
-        yolo_weights=WEIGHTS / 'yolov5m.pt',  # model.pt path(s),
+        yolo_weights=WEIGHTS / 'yolov8n.pt',  # model.pt path(s),
         reid_weights=WEIGHTS / 'osnet_x0_25_msmt17.pt',  # model.pt path,
-        tracking_method='strongsort',
-        tracking_config=None,
+        tracking_method='bytetrack', # tracking method
+        tracking_config=None, # tracking config
         imgsz=(640, 640),  # inference size (height, width)
         conf_thres=0.25,  # confidence threshold
         iou_thres=0.45,  # NMS IOU threshold
@@ -59,7 +59,7 @@ def run(
         save_conf=False,  # save confidences in --save-txt labels
         save_crop=False,  # save cropped prediction boxes
         save_trajectories=False,  # save trajectories for each track
-        save_vid=False,  # save confidences in --save-txt labels
+        save_vid=False,  # save annotated video
         nosave=False,  # do not save images/videos
         classes=None,  # filter by class: --class 0, or --class 0 2 3
         agnostic_nms=False,  # class-agnostic NMS
@@ -79,8 +79,11 @@ def run(
         retina_masks=False,
 ):
 
+    if not tracking_config:
+        tracking_config = ROOT / 'trackers' / tracking_method / 'configs' / (tracking_method + '.yaml')
+    imgsz *= 2 if len(imgsz) == 1 else 1
+
     source = str(source)
-    save_img = not nosave and not source.endswith('.txt')  # save inference images
     is_file = Path(source).suffix[1:] in (VID_FORMATS)
     is_url = source.lower().startswith(('rtsp://', 'rtmp://', 'http://', 'https://'))
     webcam = source.isnumeric() or source.endswith('.txt') or (is_url and not is_file)
@@ -141,7 +144,6 @@ def run(
     outputs = [None] * bs
 
     # Run tracking
-    #model.warmup(imgsz=(1 if pt else bs, 3, *imgsz))  # warmup
     seen, windows, dt = 0, [], (Profile(), Profile(), Profile(), Profile())
     curr_frames, prev_frames = [None] * bs, [None] * bs
     for frame_idx, batch in enumerate(dataset):
@@ -268,7 +270,6 @@ def run(
                             
             else:
                 pass
-                #tracker_list[i].tracker.pred_n_update_all_tracks()
                 
             # Stream results
             im0 = annotator.result()
@@ -308,58 +309,21 @@ def run(
     if save_txt or save_vid:
         s = f"\n{len(list((save_dir / 'tracks').glob('*.txt')))} tracks saved to {save_dir / 'tracks'}" if save_txt else ''
         LOGGER.info(f"Results saved to {colorstr('bold', save_dir)}{s}")
-    if update:
-        strip_optimizer(yolo_weights)  # update model (to fix SourceChangeWarning)
-
-
-def parse_opt():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--yolo-weights', nargs='+', type=Path, default=WEIGHTS / 'yolov8s-seg.pt', help='model.pt path(s)')
-    parser.add_argument('--reid-weights', type=Path, default=WEIGHTS / 'osnet_x0_25_msmt17.pt')
-    parser.add_argument('--tracking-method', type=str, default='bytetrack', help='strongsort, ocsort, bytetrack')
-    parser.add_argument('--tracking-config', type=Path, default=None)
-    parser.add_argument('--source', type=str, default='0', help='file/dir/URL/glob, 0 for webcam')  
-    parser.add_argument('--imgsz', '--img', '--img-size', nargs='+', type=int, default=[640], help='inference size h,w')
-    parser.add_argument('--conf-thres', type=float, default=0.5, help='confidence threshold')
-    parser.add_argument('--iou-thres', type=float, default=0.5, help='NMS IoU threshold')
-    parser.add_argument('--max-det', type=int, default=1000, help='maximum detections per image')
-    parser.add_argument('--device', default='', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
-    parser.add_argument('--show-vid', action='store_true', help='display tracking video results')
-    parser.add_argument('--save-txt', action='store_true', help='save results to *.txt')
-    parser.add_argument('--save-conf', action='store_true', help='save confidences in --save-txt labels')
-    parser.add_argument('--save-crop', action='store_true', help='save cropped prediction boxes')
-    parser.add_argument('--save-trajectories', action='store_true', help='save trajectories for each track')
-    parser.add_argument('--save-vid', action='store_true', help='save video tracking results')
-    parser.add_argument('--nosave', action='store_true', help='do not save images/videos')
-    # class 0 is person, 1 is bycicle, 2 is car... 79 is oven
-    parser.add_argument('--classes', nargs='+', type=int, help='filter by class: --classes 0, or --classes 0 2 3')
-    parser.add_argument('--agnostic-nms', action='store_true', help='class-agnostic NMS')
-    parser.add_argument('--augment', action='store_true', help='augmented inference')
-    parser.add_argument('--visualize', action='store_true', help='visualize features')
-    parser.add_argument('--update', action='store_true', help='update all models')
-    parser.add_argument('--project', default=ROOT / 'runs' / 'track', help='save results to project/name')
-    parser.add_argument('--name', default='exp', help='save results to project/name')
-    parser.add_argument('--exist-ok', action='store_true', help='existing project/name ok, do not increment')
-    parser.add_argument('--line-thickness', default=2, type=int, help='bounding box thickness (pixels)')
-    parser.add_argument('--hide-labels', default=False, action='store_true', help='hide labels')
-    parser.add_argument('--hide-conf', default=False, action='store_true', help='hide confidences')
-    parser.add_argument('--hide-class', default=False, action='store_true', help='hide IDs')
-    parser.add_argument('--half', action='store_true', help='use FP16 half-precision inference')
-    parser.add_argument('--dnn', action='store_true', help='use OpenCV DNN for ONNX inference')
-    parser.add_argument('--vid-stride', type=int, default=1, help='video frame-rate stride')
-    parser.add_argument('--retina-masks', action='store_true', help='whether to plot masks in native resolution')
-    opt = parser.parse_args()
-    opt.imgsz *= 2 if len(opt.imgsz) == 1 else 1  # expand
-    opt.tracking_config = ROOT / 'trackers' / opt.tracking_method / 'configs' / (opt.tracking_method + '.yaml')
-    print_args(vars(opt))
-    return opt
-
-
-def main(opt):
-    check_requirements(requirements=ROOT / 'requirements.txt', exclude=('tensorboard', 'thop'))
-    run(**vars(opt))
 
 
 if __name__ == "__main__":
-    opt = parse_opt()
-    main(opt)
+    check_requirements(requirements=ROOT / 'requirements.txt', exclude=('tensorboard', 'thop'))
+    run(
+        source='inference_data/videos/Ch4_20221205102329_undistorted.mp4',
+        yolo_weights=WEIGHTS / 'yolov8s.pt',  # model.pt path(s),
+        reid_weights=WEIGHTS / 'osnet_x0_25_msmt17.pt',  # model.pt path,
+        tracking_method='strongsort',
+        imgsz=(640, 640),
+        device='0',  # cuda device, i.e. 0 or 0,1,2,3 or cpu
+        save_txt=True,  # save results to *.txt
+        save_vid=False,  # save the annotated video
+        classes=[0],  # filter by class: --class 0, or --class 0 2 3
+        project=Path.cwd() / 'inference_data' / 'runs',  # save results to project/name
+        name='exp',  # save results to project/name
+        line_thickness=2,  # bounding box thickness (pixels)
+    )
