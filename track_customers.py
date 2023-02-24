@@ -210,15 +210,6 @@ def run(
                 # draw boxes for visualization
                 if len(outputs[i]) > 0:
                     
-                    if is_seg:
-                        # Mask plotting
-                        annotator.masks(
-                            masks[i],
-                            colors=[colors(x, True) for x in det[:, 5]],
-                            im_gpu=torch.as_tensor(im0, dtype=torch.float16).to(device).permute(2, 0, 1).flip(0).contiguous() /
-                            255 if retina_masks else im[i]
-                        )
-                    
                     for j, (output) in enumerate(outputs[i]):
                         
                         bbox = output[0:4]
