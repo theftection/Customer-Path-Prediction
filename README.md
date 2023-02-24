@@ -1,10 +1,9 @@
 # Customer Path Prediction
 
-- [x] Visulisierung fertig schreiben
-- [x] track.mp4 kürzen
-- [x] track.py neu kopieren und laufzeit testen
-- [x] imports fixen
-- [x] project ordner ändern und argumente ändern
-- [x] langer txt file einlesen
-- [x] transition net integrieren
-- [x] transition net testen und ausgeben
+This version of tacking_yolov8 works (at least) with weights which where created with YOLOv8 commit 15b3b03-254adfa(newer)
+To check this out, you can use the following command running the standard tracker:
+```
+python track.py --yolo-weights yolov8s_SD_EDEKA_Distorted.pt --source ../inference_data/videos/Ch4_20221205102329_undistorted.mp4 --device 0 --save-txt --classes 0
+```
+
+
