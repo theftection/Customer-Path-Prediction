@@ -1,5 +1,7 @@
 import math
+import random
 import time
+import cv2
 from typing import Dict
 import itertools
 
@@ -220,6 +222,74 @@ class TransitionNet:
 
         return self.state_to_index[(distance_from_present, cam_id, grid_x, grid_y)]
 
+    def draw_state(self, image, transition_index: int, drawing_color=(0, 0, 255), drawing_width = 5):
+
+        print('Drawing state: ', transition_index, " using color ", drawing_color)
+
+        transition = self.index_to_transitions[transition_index]
+        transition = transition[:2]  # get the first two elements from the transition
+
+        _, _, start_x_grid, start_y_grid = self.index_to_state[transition[0]]
+        _, _, end_x_grid, end_y_grid = self.index_to_state[transition[1]]
+
+        start_x = (start_x_grid + 0.5) / self.state_grid_size[0][0]
+        start_y = (start_y_grid + 0.5) / self.state_grid_size[0][1]
+        end_x = (end_x_grid + 0.5) / self.state_grid_size[1][0]
+        end_y = (end_y_grid + 0.5) / self.state_grid_size[1][1]
+
+        start_point = (int(start_x * image.shape[1]), int(start_y * image.shape[0]))
+        end_point = (int(end_x * image.shape[1]), int(end_y * image.shape[0]))
+
+        # randomly move the start and end point
+        # start_point = (start_point[0] + random.randint(-10, 10), start_point[1] + random.randint(-10, 10))
+        # end_point = (end_point[0] + random.randint(-10, 10), end_point[1] + random.randint(-10, 10))
+
+        # draw gradient line from start to end
+        arrow_length = math.sqrt((end_point[0] - start_point[0]) ** 2 + (end_point[1] - start_point[1]) ** 2)
+        tip_length = 0
+        if arrow_length > 0:
+            tip_length = drawing_width*2 / arrow_length
+        image = cv2.arrowedLine(image, start_point, end_point, drawing_color, drawing_width, tipLength=tip_length)
+
+        # draw a circle at the start point
+        image = cv2.circle(image, start_point, 5, drawing_color, -1)
+
+        return image
+
+    def draw_predictions(self, image, iterations):
+
+        n_iterations = len(iterations)
+        drawing_color = (0, 255, 0)
+
+        already_draw_indexes = []
+
+        drawing_width = 5
+        for counter, iteration in enumerate(iterations):
+            print(counter)
+
+            non_zero_indexes = np.where(iteration != 0)[0]
+            for index in non_zero_indexes:
+
+                if index in already_draw_indexes:
+                    # print('already drawn', index)
+                    continue
+
+                image = tn.draw_state(image=image, transition_index=index, drawing_color=drawing_color,
+                                      drawing_width=drawing_width)
+
+                already_draw_indexes.append(index)
+
+            # make the color lighter for the next iteration
+            drawing_color = (255 * (counter + 1) // n_iterations,
+                             255 - 255 * (counter + 1) // n_iterations,
+                             0)
+
+            drawing_width = 5 - 4 * (counter + 1) // n_iterations
+            print('drawing width', drawing_width)
+            print('drawing color', drawing_color)
+
+        return image
+
 
 if __name__ == '__main__':
     td = TransitionData()
@@ -228,15 +298,21 @@ if __name__ == '__main__':
                              cam_id=4)
 
     tn = TransitionNet(transition_data=td,
-                       grid_dimensions=(4, 4),
+                       grid_dimensions=(6, 6),
                        state_length=2,
                        state_scaler=1)
 
     starting_index = tn.create_starting_index(path=[(0, 0.5, 1), (0, 0.51, 1)])
 
     start_time = time.time()
-    d, i = tn.predict_n_steps(starting_index=starting_index, n_steps=5, n_samples=1000000,
-                              prune_to_top=True, prune_to_top_n=2)
+    d, i = tn.predict_n_steps(starting_index=1, n_steps=3, n_samples=1000000,
+                              prune_to_top=False, prune_to_top_n=10)
     end_time = time.time()
-    # print time in mikro seconds
-    print((end_time - start_time) * 1000000)
+    print((end_time - start_time) * 1000000) # print time in mikro seconds
+
+    img = np.zeros((480, 480, 3))
+    img = tn.draw_predictions(image=img, iterations=i)
+
+    cv2.imshow('img', img)
+    cv2.waitKey(0)
+
