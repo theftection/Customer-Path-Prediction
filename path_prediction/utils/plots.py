@@ -19,6 +19,10 @@ def draw_icon(img, icon, x, y):
 
     image = img.copy()
 
+    # check if x,y is within the image
+    if x < 0 or y < 0 or x > image.shape[1] or y > image.shape[0]:
+        return image
+
     if icon.shape[2] == 4:
         alpha = icon[:,:,3]
         mask = cv2.merge((alpha,alpha,alpha))
