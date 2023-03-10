@@ -1,5 +1,7 @@
 import math
+import random
 import time
+import cv2
 from typing import Dict
 import itertools
 
@@ -171,7 +173,8 @@ class TransitionNet:
 
         return destination_vector
 
-    def predict_n_steps(self, starting_index: int, n_steps: int, n_samples: int = 1) -> (np.ndarray, [np.ndarray]):
+    def predict_n_steps(self, starting_index: int, n_steps: int, n_samples: int = 1,
+                        prune_to_top=False, prune_to_top_n=3) -> (np.ndarray, [np.ndarray]):
 
         starting_vector = np.zeros(len(self.probability_net[0]))
         starting_vector[starting_index] = n_samples
@@ -180,38 +183,136 @@ class TransitionNet:
         intermediate_vectors = [starting_vector]
         for _ in range(n_steps):
             destination_vector = self.predict_transition(starting_vector=destination_vector)
+
+            if prune_to_top:
+                # keep only the top n values and set all others to 0
+                top_n = np.argpartition(destination_vector, -prune_to_top_n)[-prune_to_top_n:]
+                destination_vector = np.where(np.isin(np.arange(len(destination_vector)), top_n), destination_vector, 0)
+
             intermediate_vectors.append(destination_vector)
         return destination_vector, intermediate_vectors
 
+    def create_starting_index(self, path: [float, float, int]) -> int:
+        """
+        Create a starting index for the path
+        :param path: a list of waypoints (x, y, cam_id)
+        :return: an index
+        """
 
+        transition = []
+        path_length = len(path)
 
+        for distance_from_present in range(self.state_length):
+            waypoint = path[path_length - distance_from_present - 1]
+            transition.append(self.convert_waypoint_to_state(waypoint=waypoint,
+                                                             distance_from_present=distance_from_present))
 
+        # convert transition to index (if not in dictionary, print warning)
+        if tuple(transition) not in self.transitions_to_index.keys():
+            print('Warning: transition not known')
+            return 0
 
+        return self.transitions_to_index[tuple(transition)]
 
+    def convert_waypoint_to_state(self, waypoint: [float, float, int], distance_from_present) -> [int]:
+        x, y, cam_id = waypoint
+
+        grid_x_size, grid_y_size = self.state_grid_size[distance_from_present]
+        grid_x, grid_y = int(x * grid_x_size), int(y * grid_y_size)
+
+        return self.state_to_index[(distance_from_present, cam_id, grid_x, grid_y)]
+
+    def draw_state(self, image, transition_index: int, drawing_color=(0, 0, 255), drawing_width = 5):
+
+        print('Drawing state: ', transition_index, " using color ", drawing_color)
+
+        transition = self.index_to_transitions[transition_index]
+        transition = transition[:2]  # get the first two elements from the transition
+
+        _, _, start_x_grid, start_y_grid = self.index_to_state[transition[0]]
+        _, _, end_x_grid, end_y_grid = self.index_to_state[transition[1]]
+
+        start_x = (start_x_grid + 0.5) / self.state_grid_size[0][0]
+        start_y = (start_y_grid + 0.5) / self.state_grid_size[0][1]
+        end_x = (end_x_grid + 0.5) / self.state_grid_size[1][0]
+        end_y = (end_y_grid + 0.5) / self.state_grid_size[1][1]
+
+        start_point = (int(start_x * image.shape[1]), int(start_y * image.shape[0]))
+        end_point = (int(end_x * image.shape[1]), int(end_y * image.shape[0]))
+
+        # randomly move the start and end point
+        # start_point = (start_point[0] + random.randint(-10, 10), start_point[1] + random.randint(-10, 10))
+        # end_point = (end_point[0] + random.randint(-10, 10), end_point[1] + random.randint(-10, 10))
+
+        # draw gradient line from start to end
+        arrow_length = math.sqrt((end_point[0] - start_point[0]) ** 2 + (end_point[1] - start_point[1]) ** 2)
+        tip_length = 0
+        if arrow_length > 0:
+            tip_length = drawing_width*2 / arrow_length
+        image = cv2.arrowedLine(image, start_point, end_point, drawing_color, drawing_width, tipLength=tip_length)
+
+        # draw a circle at the start point
+        image = cv2.circle(image, start_point, 5, drawing_color, -1)
+
+        return image
+
+    def draw_predictions(self, image, iterations):
+
+        n_iterations = len(iterations)
+        drawing_color = (0, 255, 0)
+
+        already_draw_indexes = []
+
+        drawing_width = 5
+        for counter, iteration in enumerate(iterations):
+            print(counter)
+
+            non_zero_indexes = np.where(iteration != 0)[0]
+            for index in non_zero_indexes:
+
+                if index in already_draw_indexes:
+                    # print('already drawn', index)
+                    continue
+
+                image = tn.draw_state(image=image, transition_index=index, drawing_color=drawing_color,
+                                      drawing_width=drawing_width)
+
+                already_draw_indexes.append(index)
+
+            # make the color lighter for the next iteration
+            drawing_color = (255 * (counter + 1) // n_iterations,
+                             255 - 255 * (counter + 1) // n_iterations,
+                             0)
+
+            drawing_width = 5 - 4 * (counter + 1) // n_iterations
+            print('drawing width', drawing_width)
+            print('drawing color', drawing_color)
+
+        return image
 
 
 if __name__ == '__main__':
-    
     td = TransitionData()
-    td.add_txt_data(path_to_data='inference_data/transitions/Ch4_cam11_1.txt',
-                    cam_id=11)
+    td.load_floorplan_folder(folder_path='inference_data/transitions/',
+                             source_resolution=(960, 720),
+                             cam_id=4)
 
     tn = TransitionNet(transition_data=td,
-                    grid_dimensions=(4, 4),
-                    state_length=2,
-                    state_scaler=1)
+                       grid_dimensions=(6, 6),
+                       state_length=2,
+                       state_scaler=1)
+
+    starting_index = tn.create_starting_index(path=[(0, 0.5, 1), (0, 0.51, 1)])
 
     start_time = time.time()
-    d, i = tn.predict_n_steps(starting_index=0, n_steps=5, n_samples=1000000)
+    d, i = tn.predict_n_steps(starting_index=1, n_steps=3, n_samples=1000000,
+                              prune_to_top=False, prune_to_top_n=10)
     end_time = time.time()
-    # print time in mikro seconds
-    print((end_time - start_time) * 1000000)
+    print((end_time - start_time) * 1000000) # print time in mikro seconds
 
-    def product(ar_list):
-        if not ar_list:
-            yield ()
-        else:
-            for a in ar_list[0]:
-                for prod in product(ar_list[1:]):
-                    print('a: ', a, 'prod: ', prod)
-                    yield (a,) + prod
+    img = np.zeros((480, 480, 3))
+    img = tn.draw_predictions(image=img, iterations=i)
+
+    cv2.imshow('img', img)
+    cv2.waitKey(0)
+

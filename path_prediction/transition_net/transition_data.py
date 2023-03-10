@@ -4,6 +4,7 @@ from enum import Enum
 
 from path_prediction.transition_net.grid_point import GridPoint
 
+
 def data_aggregate_framerate(df, frame_rate):
     df['Frame'] = df['Frame'] // frame_rate
     df = df.groupby('Frame').mean().round(0)
@@ -15,6 +16,7 @@ class BoundingBoxAdjustment(Enum):
     BOTTOM_LEFT = "BOTTOM_LEFT"
     BOTTOM_CENTER = "BOTTOM_CENTER"
     TOP_LEFT = "TOP_LEFT"
+
 
 # TODO: Prevent cam 0 from being used
 # TODO: Add quick-access for unique cam-ids
@@ -29,8 +31,8 @@ class TransitionData:
         self.unique_cam_ids = {}
 
     def add_floorplan_txt_data(self, path_to_data: str, source_resolution: (int, int) = (960, 720),
-                 invert_x: bool = False, invert_y: bool = False,
-                 cam_id: int = 1, frame_rate: int = 24):
+                               invert_x: bool = False, invert_y: bool = False,
+                               cam_id: int = 1, frame_rate: int = 24):
 
         # if cam id is 0 throw an exception
         if cam_id == 0:
@@ -80,7 +82,6 @@ class TransitionData:
         # add it to the raw data
         self.raw_data = pd.concat([self.raw_data, new_data], ignore_index=True)
         self.highest_id = self.raw_data['instance_id'].max()
-    
 
     def load_floorplan_folder(self, folder_path: str, source_resolution: (int, int), cam_id: int):
         for file in os.listdir(folder_path):
@@ -88,7 +89,6 @@ class TransitionData:
                 file_path = os.path.join(folder_path, file)
                 print("Loading file: " + file_path + " to transition_data")
                 self.add_floorplan_txt_data(path_to_data=file_path)
-                
 
     def get_unique_instance_ids(self) -> list:
         return self.raw_data['instance_id'].unique().tolist()
@@ -96,12 +96,11 @@ class TransitionData:
     def get_instance_grid_points(self, instance_id: int) -> dict[int, GridPoint]:
         instance_data = self.raw_data[self.raw_data['instance_id'] == instance_id]
         instance_data = instance_data.sort_values(by=['frame_id'])
-        
+
         grid_point_dict: dict[int, GridPoint] = {}
-        
+
         # loop through all rows
         for i, row in instance_data.iterrows():
-
             current_frame_id: int = int(row['frame_id'])
 
             new_grid_point = GridPoint(rel_x=row['x_rel'],
