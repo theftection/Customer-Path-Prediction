@@ -46,6 +46,8 @@ from path_prediction.perspective_transformation.transform_perspektive import loa
 from path_prediction.transition_net.transition_data import TransitionData
 from path_prediction.transition_net.transition_net import TransitionNet
 
+from path_prediction.utils.plots import draw_icon
+
 
 @torch.no_grad()
 def run(
@@ -95,6 +97,8 @@ def run(
         floor_redzones, image_greenzones = load_zones(projection_project / "zones")
         print(P, P_inv, camera_origin, floor_plan_im.shape)
         print(floor_redzones, image_greenzones)
+        icon_man = cv2.imread(str(FILE.parents[0] / "inference_data" / "icons" / "icon_man.png"))
+        icon_cart = cv2.imread(str(FILE.parents[0] / "inference_data" / "icons" / "icon_cart.png"))
 
     if predict_customer_path:
         transition_data_dir = FILE.parents[0] / "inference_data" / "transition_data"
@@ -263,13 +267,22 @@ def run(
                             color = colors(c, True)
                             annotator.box_label(bbox, label, color=color)
 
-                            if save_projection and c==0:
+                            if save_projection and c==0 :
                                 floor_position = tuple(estimate_floor_position(P_inv, camera_origin, bbox, floor_redzones, image_greenzones))
-                                cv2.circle(imfp, floor_position, line_thickness+6, color, -1)
+                                try:
+                                    draw_icon(imfp, icon_man, floor_position)
+                                except:
+                                    print("!!!!!!!!!!!!!!!!!!!!!!", floor_position)
+                                #cv2.circle(imfp, floor_position, line_thickness+6, color, -1)
 
                                 if save_floor_positions:
                                     with open(txt_path + '_floor_positions.txt', 'a') as f:
                                         f.write(('%g ' * 4 + '\n') % (frame_idx + 1, id, floor_position[0], floor_position[1]))
+
+                            if save_projection and c==1 :
+                                floor_position = tuple(estimate_floor_position(P_inv, camera_origin, bbox, floor_redzones, image_greenzones, avg_heigth=50))
+                                draw_icon(imfp, icon_cart, floor_position)
+                                #cv2.circle(imfp, floor_position, line_thickness+6, color, -1)
 
                             if save_trajectories and tracking_method == 'strongsort':
                                 q = output[7]
@@ -331,17 +344,18 @@ def run(
 if __name__ == "__main__":
     check_requirements(requirements=ROOT / 'requirements.txt', exclude=('tensorboard', 'thop'))
     run(
-        source='inference_data/videos/Ch4_20221205102329_undistorted.mp4',
-        yolo_weights=WEIGHTS / 'yolov8s.pt',  # model.pt path(s),
+        source='inference_data/videos/demo_clean.mp4', # file to predict
+        yolo_weights=WEIGHTS / 'yolov8s_SD_EDEKA_Cheat_960.pt',  # model.pt path(s),
         reid_weights=WEIGHTS / 'osnet_x0_25_msmt17.pt',  # model.pt path,
-        tracking_method='strongsort',
-        imgsz=(640, 640),
+        tracking_method='bytetrack',
+        imgsz=(960, 960),
+        conf_thres=0.81, #conf thres for detection model
         device='0',  # cuda device, i.e. 0 or 0,1,2,3 or cpu
         save_txt=True,  # save results to *.txt
         save_vid=True,  # save the annotated video
         floor_plan_projection="Ch4_960",  # project the annotated video onto the floor plan
         save_floor_positions=True,  # save the floor positions of the annotated video to .txt
-        predict_customer_path=True,  # predict the path of the customer
-        classes=[0],  # filter by class: --class 0, or --class 0 2 3
+        predict_customer_path=False,  # predict the path of the customer
+        classes=[0,1],  # filter by class: --class 0, or --class 0 2 3
         project=Path.cwd() / 'inference_data' / 'runs',  # save results to project/name
     )
